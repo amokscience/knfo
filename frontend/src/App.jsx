@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import ResourceTable from './components/ResourceTable'
+import DetailModal from './components/DetailModal'
 import { resourceGroups } from './resources'
 
 const firstKind = resourceGroups[0].items[0].kind
@@ -12,6 +13,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isCached, setIsCached] = useState(false)
+  const [modalItem, setModalItem] = useState(null)
 
   // Cache: { [kind]: { rows, namespaced, error } }
   const cache = useRef({})
@@ -108,6 +110,13 @@ export default function App() {
           namespaced={namespaced}
           loading={loading}
           error={error}
+          onRowClick={setModalItem}
+        />
+
+        <DetailModal
+          item={modalItem}
+          kind={selectedKind}
+          onClose={() => setModalItem(null)}
         />
       </div>
     </div>
