@@ -45,10 +45,11 @@ const WARN_PATTERNS = [
 
 function statusSeverity(status) {
   if (!status) return null
-  // Handle "X/Y" ratio strings (e.g. "0/1", "1/2")
-  const ratio = status.match(/^(\d+)\/(\d+)$/)
+  // Handle "X/Y" ratio strings, optionally with trailing label e.g. "0/1 ready", "1/2"
+  const ratio = status.match(/(\d+)\/(\d+)/)
   if (ratio) {
-    const [, ready, total] = ratio.map(Number)
+    const ready = Number(ratio[1])
+    const total = Number(ratio[2])
     if (ready === 0 && total > 0) return 'error'
     if (ready < total) return 'warning'
     return null
@@ -111,11 +112,15 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
             <tr
               key={`${row.name}-${row.namespace}-${idx}`}
               className={rowClass}
-              onClick={() => onRowClick?.(row)}
-              style={{ cursor: onRowClick ? 'pointer' : 'default' }}
-              title={onRowClick ? 'Click to view details' : undefined}
             >
-              <td><code className="text-body">{row.name}</code></td>
+              <td>
+                <code
+                  className="text-body"
+                  onClick={() => onRowClick?.(row)}
+                  style={{ cursor: onRowClick ? 'pointer' : 'default' }}
+                  title={onRowClick ? 'Click to view details' : undefined}
+                >{row.name}</code>
+              </td>
               {namespaced && (
                 <td>
                   <span
