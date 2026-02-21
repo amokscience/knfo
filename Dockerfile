@@ -20,12 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -sSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
         -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl \
-    && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /knfo /app/knfo
 COPY web/ /app/web/
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -sf http://localhost:8080/healthz || exit 1
 
 ENTRYPOINT ["/app/knfo"]
