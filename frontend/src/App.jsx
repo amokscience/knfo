@@ -25,7 +25,6 @@ export default function App() {
 
   const handleSelect = (kind) => {
     setSelectedKind(kind)
-    // Restore from cache immediately if available, otherwise reset
     if (cache.current[kind]) {
       const cached = cache.current[kind]
       setRows(cached.rows)
@@ -37,6 +36,7 @@ export default function App() {
       setNamespaced(false)
       setError('')
       setIsCached(false)
+      fetchResources(kind)
     }
   }
 
@@ -91,15 +91,15 @@ export default function App() {
             disabled={loading}
           >
             {loading
-              ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />Fetching…</>
-              : 'Fetch'
+              ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />Refreshing…</>
+              : 'Refresh'
             }
           </button>
           {rows !== null && !loading && !error && (
             <span className="text-secondary small">
               {rows.length} item{rows.length !== 1 ? 's' : ''}
               {isCached && (
-                <span className="badge text-bg-warning ms-2" title="Showing cached result — click Fetch to refresh">cached</span>
+                <span className="badge text-bg-warning ms-2" title="Showing cached result — click Refresh to repull">cached</span>
               )}
             </span>
           )}
