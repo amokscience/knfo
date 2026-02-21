@@ -1,4 +1,15 @@
-# ---- Build stage ----
+# ---- Frontend build stage ----
+FROM node:20-alpine AS frontend
+WORKDIR /frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+# outDir is ../web (see vite.config.js), lands at /web inside this stage
+RUN npm run build
+
+# ---- Go build stage ----
 FROM golang:1.22-alpine AS builder
 WORKDIR /src
 
@@ -23,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /knfo /app/knfo
-COPY web/ /app/web/
+COPY --from=frontend /web /app/web/
 
 EXPOSE 8080
 
