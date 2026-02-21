@@ -267,11 +267,14 @@ func resourcesHandler(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := runKubectl(r.Context(), def)
 	if err != nil {
+		log.Printf("ERROR kind=%s remote=%s: %v", kind, r.RemoteAddr, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(err)})
 		return
 	}
+
+	log.Printf("OK kind=%s remote=%s rows=%d", kind, r.RemoteAddr, len(rows))
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resourceResponse{Namespaced: def.namespaced, Rows: rows})
@@ -289,10 +292,13 @@ func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		raw := strings.TrimSpace(string(out))
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			log.Printf("kubectl timeout: args=%v", args)
 			return nil, fmt.Errorf("timed out")
 		}
-		return nil, fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		log.Printf("kubectl error: args=%v output=%s", args, raw)
+		return nil, fmt.Errorf("%s", raw)
 	}
 
 	var list struct {
