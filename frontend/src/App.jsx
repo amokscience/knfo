@@ -44,10 +44,14 @@ export default function App() {
     setIsCached(false)
     try {
       const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
-      const data = await response.json()
       if (!response.ok) {
-        throw new Error(data.error || 'Request failed')
+        // Server returns plain text for 4xx and JSON for 5xx — handle both
+        const text = await response.text()
+        let msg
+        try { msg = JSON.parse(text)?.error } catch (_) { msg = text.trim() }
+        throw new Error(msg || `Request failed (${response.status})`)
       }
+      const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
       // Overwrite cache for this kind
