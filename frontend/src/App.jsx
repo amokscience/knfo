@@ -85,7 +85,7 @@ export default function App() {
           <h1 className="h5 mb-0 fw-semibold">{selectedLabel}</h1>
           <button
             className="btn btn-sm btn-primary"
-            onClick={fetchResources}
+            onClick={() => fetchResources()}
             disabled={loading}
           >
             {loading
