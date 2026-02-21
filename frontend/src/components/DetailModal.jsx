@@ -26,6 +26,7 @@ export default function DetailModal({ item, kind, onClose }) {
   const [output, setOutput] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
   const backdropRef = useRef()
 
   const modeLabel = MODE_LABEL[kind] ?? 'Describe'
@@ -54,6 +55,17 @@ export default function DetailModal({ item, kind, onClose }) {
       .catch((err) => setError(err.message || 'Failed to load detail'))
       .finally(() => setLoading(false))
   }, [item, kind, name, namespace])
+
+  // Reset copied state when item changes
+  useEffect(() => { setCopied(false) }, [item])
+
+  const handleCopy = () => {
+    if (!output) return
+    navigator.clipboard.writeText(output).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   // Close on Escape key
   useEffect(() => {
@@ -103,12 +115,24 @@ export default function DetailModal({ item, kind, onClose }) {
             </span>
             <span className="fw-semibold text-white text-truncate">{title}</span>
           </div>
-          <button
-            className="btn-close btn-close-white ms-3"
-            style={{ flexShrink: 0 }}
-            onClick={onClose}
-            aria-label="Close"
-          />
+          <div className="d-flex align-items-center gap-2 ms-3" style={{ flexShrink: 0 }}>
+            <button
+              className="btn btn-sm"
+              style={{ color: copied ? '#4ade80' : '#94a3b8', padding: '2px 6px', lineHeight: 1 }}
+              onClick={handleCopy}
+              disabled={!output}
+              title="Copy to clipboard"
+            >
+              {copied
+                ? <i className="bi bi-check2" style={{ fontSize: '1rem' }} />
+                : <i className="bi bi-clipboard" style={{ fontSize: '1rem' }} />}
+            </button>
+            <button
+              className="btn-close btn-close-white"
+              onClick={onClose}
+              aria-label="Close"
+            />
+          </div>
         </div>
 
         {/* Body */}
