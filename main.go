@@ -12,32 +12,229 @@ import (
 	"time"
 )
 
-type namespaceListResponse struct {
-	Rows []namespaceRow `json:"rows"`
+// ── Response types ────────────────────────────────────────────────────────────
+
+type resourceResponse struct {
+	Namespaced bool          `json:"namespaced"`
+	Rows       []resourceRow `json:"rows"`
 }
 
-type namespaceRow struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Age    string `json:"age"`
+type resourceRow struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+	Status    string `json:"status,omitempty"`
+	Age       string `json:"age"`
 }
 
-type kubectlNamespaces struct {
-	Items []struct {
-		Metadata struct {
-			Name              string    `json:"name"`
-			CreationTimestamp time.Time `json:"creationTimestamp"`
-		} `json:"metadata"`
-		Status struct {
-			Phase string `json:"phase"`
-		} `json:"status"`
-	} `json:"items"`
+// ── Resource registry ─────────────────────────────────────────────────────────
+
+type resourceDef struct {
+	kubectlName string
+	namespaced  bool
+	statusFn    func(item map[string]interface{}) string
 }
+
+var registry = map[string]resourceDef{
+	// Core
+	"namespaces": {
+		kubectlName: "namespaces",
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "status", "phase") },
+	},
+	"nodes": {
+		kubectlName: "nodes",
+		statusFn: func(i map[string]interface{}) string {
+			for _, c := range gSlice(i, "status", "conditions") {
+				cm, _ := c.(map[string]interface{})
+				if gStrD(cm, "type") == "Ready" {
+					if gStrD(cm, "status") == "True" {
+						return "Ready"
+					}
+					return "NotReady"
+				}
+			}
+			return "Unknown"
+		},
+	},
+	"pods": {
+		kubectlName: "pods",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "status", "phase") },
+	},
+	"services": {
+		kubectlName: "services",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "spec", "type") },
+	},
+	"endpoints": {
+		kubectlName: "endpoints",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return "" },
+	},
+	"configmaps": {
+		kubectlName: "configmaps",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return "" },
+	},
+	"secrets": {
+		kubectlName: "secrets",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "type") },
+	},
+	"events": {
+		kubectlName: "events",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			reason := gStr(i, "reason")
+			msg := gStr(i, "message")
+			if reason != "" && msg != "" {
+				if len(msg) > 80 {
+					msg = msg[:80] + "…"
+				}
+				return reason + ": " + msg
+			}
+			return reason
+		},
+	},
+	"serviceaccounts": {
+		kubectlName: "serviceaccounts",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return "" },
+	},
+	"persistentvolumes": {
+		kubectlName: "persistentvolumes",
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "status", "phase") },
+	},
+	"persistentvolumeclaims": {
+		kubectlName: "persistentvolumeclaims",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "status", "phase") },
+	},
+	"resourcequotas": {
+		kubectlName: "resourcequotas",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return "" },
+	},
+	"limitranges": {
+		kubectlName: "limitranges",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return "" },
+	},
+	// Workloads
+	"deployments": {
+		kubectlName: "deployments",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			return fmt.Sprintf("%d/%d ready", gInt(i, "status", "readyReplicas"), gInt(i, "spec", "replicas"))
+		},
+	},
+	"replicasets": {
+		kubectlName: "replicasets",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			return fmt.Sprintf("%d/%d ready", gInt(i, "status", "readyReplicas"), gInt(i, "spec", "replicas"))
+		},
+	},
+	"statefulsets": {
+		kubectlName: "statefulsets",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			return fmt.Sprintf("%d/%d ready", gInt(i, "status", "readyReplicas"), gInt(i, "spec", "replicas"))
+		},
+	},
+	"daemonsets": {
+		kubectlName: "daemonsets",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			return fmt.Sprintf("%d/%d ready", gInt(i, "status", "numberReady"), gInt(i, "status", "desiredNumberScheduled"))
+		},
+	},
+	"jobs": {
+		kubectlName: "jobs",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			succeeded := gInt(i, "status", "succeeded")
+			completions := gInt(i, "spec", "completions")
+			if gInt(i, "status", "active") > 0 {
+				return fmt.Sprintf("Active (%d/%d)", succeeded, completions)
+			}
+			return fmt.Sprintf("Complete (%d/%d)", succeeded, completions)
+		},
+	},
+	"cronjobs": {
+		kubectlName: "cronjobs",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "spec", "schedule") },
+	},
+	"horizontalpodautoscalers": {
+		kubectlName: "horizontalpodautoscalers",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			return fmt.Sprintf("%d/%d replicas", gInt(i, "status", "currentReplicas"), gInt(i, "spec", "maxReplicas"))
+		},
+	},
+	// Networking
+	"ingresses": {
+		kubectlName: "ingresses",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			var hosts []string
+			for _, r := range gSlice(i, "spec", "rules") {
+				if rm, ok := r.(map[string]interface{}); ok {
+					if h := gStrD(rm, "host"); h != "" {
+						hosts = append(hosts, h)
+					}
+				}
+			}
+			return strings.Join(hosts, ", ")
+		},
+	},
+	"ingressclasses": {
+		kubectlName: "ingressclasses",
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "spec", "controller") },
+	},
+	"networkpolicies": {
+		kubectlName: "networkpolicies",
+		namespaced:  true,
+		statusFn:    func(i map[string]interface{}) string { return "" },
+	},
+	// Storage
+	"storageclasses": {
+		kubectlName: "storageclasses",
+		statusFn:    func(i map[string]interface{}) string { return gStr(i, "provisioner") },
+	},
+	"volumeattachments": {
+		kubectlName: "volumeattachments",
+		statusFn: func(i map[string]interface{}) string {
+			if attached, ok := gPath(i, "status", "attached").(bool); ok {
+				if attached {
+					return "Attached"
+				}
+				return "Detached"
+			}
+			return ""
+		},
+	},
+	// RBAC
+	"roles":               {kubectlName: "roles", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"rolebindings":        {kubectlName: "rolebindings", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"clusterroles":        {kubectlName: "clusterroles", statusFn: func(i map[string]interface{}) string { return "" }},
+	"clusterrolebindings": {kubectlName: "clusterrolebindings", statusFn: func(i map[string]interface{}) string { return "" }},
+	// Policy
+	"poddisruptionbudgets": {
+		kubectlName: "poddisruptionbudgets",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			return fmt.Sprintf("%d healthy / %d desired", gInt(i, "status", "currentHealthy"), gInt(i, "status", "desiredHealthy"))
+		},
+	},
+}
+
+// ── Handlers ──────────────────────────────────────────────────────────────────
 
 func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./web")))
-	mux.HandleFunc("/api/namespaces", namespacesHandler)
+	mux.HandleFunc("/api/resources", resourcesHandler)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -50,64 +247,149 @@ func main() {
 	}
 }
 
-func namespacesHandler(w http.ResponseWriter, r *http.Request) {
+func resourcesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	rows, err := runKubectlNamespaces(r.Context())
+	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
+	if kind == "" {
+		http.Error(w, "missing required query parameter: kind", http.StatusBadRequest)
+		return
+	}
+
+	def, ok := registry[kind]
+	if !ok {
+		http.Error(w, fmt.Sprintf("unsupported resource kind: %q", kind), http.StatusBadRequest)
+		return
+	}
+
+	rows, err := runKubectl(r.Context(), def)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(err)})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(namespaceListResponse{Rows: rows}); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-	}
+	_ = json.NewEncoder(w).Encode(resourceResponse{Namespaced: def.namespaced, Rows: rows})
 }
 
-func runKubectlNamespaces(ctx context.Context) ([]namespaceRow, error) {
+func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "kubectl", "get", "namespaces", "-A", "-o", "json")
+	args := []string{"get", def.kubectlName, "-o", "json"}
+	if def.namespaced {
+		args = append(args, "-A")
+	}
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("kubectl command timed out")
+			return nil, fmt.Errorf("timed out")
 		}
-		return nil, fmt.Errorf("kubectl failed: %s", strings.TrimSpace(string(out)))
+		return nil, fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
 
-	var parsed kubectlNamespaces
-	if err := json.Unmarshal(out, &parsed); err != nil {
-		return nil, fmt.Errorf("failed parsing kubectl output: %w", err)
+	var list struct {
+		Items []map[string]interface{} `json:"items"`
+	}
+	if err := json.Unmarshal(out, &list); err != nil {
+		return nil, fmt.Errorf("failed to parse kubectl output")
 	}
 
-	rows := make([]namespaceRow, 0, len(parsed.Items))
-	for _, item := range parsed.Items {
-		rows = append(rows, namespaceRow{
-			Name:   item.Metadata.Name,
-			Status: item.Status.Phase,
-			Age:    humanizeAge(item.Metadata.CreationTimestamp),
+	rows := make([]resourceRow, 0, len(list.Items))
+	for _, item := range list.Items {
+		meta, _ := item["metadata"].(map[string]interface{})
+		if meta == nil {
+			continue
+		}
+		created, _ := time.Parse(time.RFC3339, gStrD(meta, "creationTimestamp"))
+		rows = append(rows, resourceRow{
+			Name:      gStrD(meta, "name"),
+			Namespace: gStrD(meta, "namespace"),
+			Status:    def.statusFn(item),
+			Age:       humanizeAge(created),
 		})
 	}
-
 	return rows, nil
+}
+
+func sanitizeError(err error) string {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "Forbidden"):
+		return "Permission denied: the service account does not have access to this resource."
+	case strings.Contains(msg, "timed out"):
+		return "The kubectl command timed out. Check cluster connectivity."
+	case strings.Contains(msg, "not found"), strings.Contains(msg, "No such"):
+		return "Resource type not found in this cluster."
+	case strings.Contains(msg, "connection refused"), strings.Contains(msg, "no such host"):
+		return "Cannot reach the Kubernetes API server."
+	}
+	return "Failed to retrieve resources. Check server logs for details."
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+func gPath(m map[string]interface{}, keys ...string) interface{} {
+	var cur interface{} = m
+	for _, k := range keys {
+		cm, ok := cur.(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		cur = cm[k]
+	}
+	return cur
+}
+
+func gStr(m map[string]interface{}, keys ...string) string {
+	if s, ok := gPath(m, keys...).(string); ok {
+		return s
+	}
+	return ""
+}
+
+func gStrD(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	if s, ok := m[key].(string); ok {
+		return s
+	}
+	return ""
+}
+
+func gInt(m map[string]interface{}, keys ...string) int64 {
+	switch n := gPath(m, keys...).(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	}
+	return 0
+}
+
+func gSlice(m map[string]interface{}, keys ...string) []interface{} {
+	if s, ok := gPath(m, keys...).([]interface{}); ok {
+		return s
+	}
+	return nil
 }
 
 func humanizeAge(created time.Time) string {
 	if created.IsZero() {
 		return "unknown"
 	}
-
 	d := time.Since(created)
 	if d < 0 {
 		return "0m"
 	}
-
 	switch {
 	case d < time.Hour:
 		return fmt.Sprintf("%dm", int(d.Minutes()))
