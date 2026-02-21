@@ -227,6 +227,93 @@ var registry = map[string]resourceDef{
 			return fmt.Sprintf("%d healthy / %d desired", gInt(i, "status", "currentHealthy"), gInt(i, "status", "desiredHealthy"))
 		},
 	},
+	// CRDs
+	"customresourcedefinitions": {
+		kubectlName: "customresourcedefinitions",
+		statusFn: func(i map[string]interface{}) string {
+			for _, c := range gSlice(i, "status", "conditions") {
+				cm, _ := c.(map[string]interface{})
+				if gStrD(cm, "type") == "Established" {
+					if gStrD(cm, "status") == "True" {
+						return "Established"
+					}
+					return "NotEstablished"
+				}
+			}
+			return ""
+		},
+	},
+	// Argo CD
+	"applications": {
+		kubectlName: "applications",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			health := gStr(i, "status", "health", "status")
+			sync := gStr(i, "status", "sync", "status")
+			if health != "" || sync != "" {
+				return health + " / " + sync
+			}
+			return ""
+		},
+	},
+	"appprojects":     {kubectlName: "appprojects", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"applicationsets": {kubectlName: "applicationsets", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	// External Secrets
+	"externalsecrets": {
+		kubectlName: "externalsecrets",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			for _, c := range gSlice(i, "status", "conditions") {
+				cm, _ := c.(map[string]interface{})
+				if gStrD(cm, "type") == "Ready" {
+					if gStrD(cm, "status") == "True" {
+						return "Ready"
+					}
+					return gStrD(cm, "message")
+				}
+			}
+			return ""
+		},
+	},
+	"secretstores": {
+		kubectlName: "secretstores",
+		namespaced:  true,
+		statusFn: func(i map[string]interface{}) string {
+			for _, c := range gSlice(i, "status", "conditions") {
+				cm, _ := c.(map[string]interface{})
+				if gStrD(cm, "type") == "Ready" {
+					if gStrD(cm, "status") == "True" {
+						return "Ready"
+					}
+					return gStrD(cm, "message")
+				}
+			}
+			return ""
+		},
+	},
+	"clustersecretstores": {
+		kubectlName: "clustersecretstores",
+		statusFn: func(i map[string]interface{}) string {
+			for _, c := range gSlice(i, "status", "conditions") {
+				cm, _ := c.(map[string]interface{})
+				if gStrD(cm, "type") == "Ready" {
+					if gStrD(cm, "status") == "True" {
+						return "Ready"
+					}
+					return gStrD(cm, "message")
+				}
+			}
+			return ""
+		},
+	},
+	"clusterexternalsecrets": {kubectlName: "clusterexternalsecrets", statusFn: func(i map[string]interface{}) string { return "" }},
+	// Monitoring
+	"servicemonitors": {kubectlName: "servicemonitors", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"prometheusrules": {kubectlName: "prometheusrules", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"podmonitors":     {kubectlName: "podmonitors", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"probes":          {kubectlName: "probes", namespaced: true, statusFn: func(i map[string]interface{}) string { return "" }},
+	"alertmanagers":   {kubectlName: "alertmanagers", namespaced: true, statusFn: func(i map[string]interface{}) string { return fmt.Sprintf("%d replicas", gInt(i, "spec", "replicas")) }},
+	"prometheuses":    {kubectlName: "prometheuses", namespaced: true, statusFn: func(i map[string]interface{}) string { return fmt.Sprintf("%d replicas", gInt(i, "spec", "replicas")) }},
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -380,6 +467,24 @@ var detailRegistry = map[string]detailDef{
 	"daemonsets":               {mode: detailDescribe, kubectlName: "daemonset", namespaced: true},
 	"jobs":                     {mode: detailDescribe, kubectlName: "job", namespaced: true},
 	"horizontalpodautoscalers": {mode: detailDescribe, kubectlName: "hpa", namespaced: true},
+	// CRDs
+	"customresourcedefinitions": {mode: detailYAML, kubectlName: "crd"},
+	// Argo CD
+	"applications":    {mode: detailDescribe, kubectlName: "application", namespaced: true},
+	"appprojects":     {mode: detailYAML, kubectlName: "appproject", namespaced: true},
+	"applicationsets": {mode: detailYAML, kubectlName: "applicationset", namespaced: true},
+	// External Secrets
+	"externalsecrets":        {mode: detailYAML, kubectlName: "externalsecret", namespaced: true},
+	"secretstores":           {mode: detailYAML, kubectlName: "secretstore", namespaced: true},
+	"clustersecretstores":    {mode: detailYAML, kubectlName: "clustersecretstore"},
+	"clusterexternalsecrets": {mode: detailYAML, kubectlName: "clusterexternalsecret"},
+	// Monitoring
+	"servicemonitors": {mode: detailYAML, kubectlName: "servicemonitor", namespaced: true},
+	"prometheusrules": {mode: detailYAML, kubectlName: "prometheusrule", namespaced: true},
+	"podmonitors":     {mode: detailYAML, kubectlName: "podmonitor", namespaced: true},
+	"probes":          {mode: detailYAML, kubectlName: "probe", namespaced: true},
+	"alertmanagers":   {mode: detailDescribe, kubectlName: "alertmanager", namespaced: true},
+	"prometheuses":    {mode: detailDescribe, kubectlName: "prometheus", namespaced: true},
 }
 
 func detailHandler(w http.ResponseWriter, r *http.Request) {
