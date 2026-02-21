@@ -80,7 +80,13 @@ jobs:
   promote:
     needs: build
     runs-on: ubuntu-latest
+    # Branch promotion disabled — re-enable by replacing `if: false` with the commented condition below
     if: false
+    # if: |
+    #   success() &&
+    #   (github.ref == 'refs/heads/dev' ||
+    #    github.ref == 'refs/heads/qa' ||
+    #    github.ref == 'refs/heads/staging')
 
     steps:
       - name: Checkout repository
