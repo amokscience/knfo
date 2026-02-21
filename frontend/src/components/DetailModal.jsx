@@ -75,7 +75,7 @@ export default function DetailModal({ item, kind, onClose }) {
           background: '#1e293b',
           borderRadius: '10px',
           width: '100%',
-          maxWidth: '860px',
+          maxWidth: 'min(1720px, 95vw)',
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column',
