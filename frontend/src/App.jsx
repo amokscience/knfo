@@ -1,88 +1,83 @@
 import { useState } from 'react'
+import Sidebar from './components/Sidebar'
+import ResourceTable from './components/ResourceTable'
+import { resourceGroups } from './resources'
+
+const firstKind = resourceGroups[0].items[0].kind
 
 export default function App() {
-  const [rows, setRows] = useState([])
+  const [selectedKind, setSelectedKind] = useState(firstKind)
+  const [rows, setRows] = useState(null)       // null = not yet fetched
+  const [namespaced, setNamespaced] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const fetchNamespaces = async () => {
+  // Label for the currently selected kind
+  const selectedLabel = resourceGroups
+    .flatMap(g => g.items)
+    .find(i => i.kind === selectedKind)?.label ?? selectedKind
+
+  const handleSelect = (kind) => {
+    setSelectedKind(kind)
+    setRows(null)
+    setError('')
+  }
+
+  const fetchResources = async () => {
     setLoading(true)
     setError('')
-
     try {
-      const response = await fetch('/api/namespaces')
-      if (!response.ok) {
-        const message = await response.text()
-        throw new Error(message || 'Request failed')
-      }
+      const response = await fetch(`/api/resources?kind=${encodeURIComponent(selectedKind)}`)
       const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed')
+      }
+      setNamespaced(!!data.namespaced)
       setRows(Array.isArray(data.rows) ? data.rows : [])
     } catch (err) {
-      setError(err.message || 'Failed to fetch namespaces')
+      setError(err.message || 'Failed to fetch resources')
+      setRows([])
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="container-fluid py-4">
-      <div className="row justify-content-center">
-        <div className="col-12 col-xl-10">
+    <div className="d-flex vh-100">
+      {/* Sidebar */}
+      <div
+        className="d-flex flex-column flex-shrink-0 p-3 border-end overflow-auto"
+        style={{ width: '220px', background: '#0f172a' }}
+      >
+        <span className="fw-bold text-white mb-3 ms-1">knfo</span>
+        <Sidebar selected={selectedKind} onSelect={handleSelect} />
+      </div>
 
-          <div className="d-flex align-items-center gap-3 mb-4">
-            <h1 className="h4 mb-0 fw-semibold">Kubernetes Namespaces</h1>
-            <button
-              className="btn btn-primary"
-              onClick={fetchNamespaces}
-              disabled={loading}
-            >
-              {loading
-                ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />Running...</>
-                : 'Run kubectl get namespaces -A'
-              }
-            </button>
-          </div>
-
-          {error && (
-            <div className="alert alert-danger" role="alert">
-              {error}
-            </div>
+      {/* Main */}
+      <div className="flex-grow-1 p-4 overflow-auto">
+        <div className="d-flex align-items-center gap-3 mb-2">
+          <h1 className="h5 mb-0 fw-semibold">{selectedLabel}</h1>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={fetchResources}
+            disabled={loading}
+          >
+            {loading
+              ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" />Fetching…</>
+              : 'Fetch'
+            }
+          </button>
+          {rows !== null && !loading && !error && (
+            <span className="text-secondary small">{rows.length} item{rows.length !== 1 ? 's' : ''}</span>
           )}
-
-          <div className="table-responsive">
-            <table className="table table-striped table-hover table-bordered align-middle mb-0">
-              <thead className="table-dark">
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Age</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan="3" className="text-center text-muted py-4">
-                      No data yet — click the button to run the command.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row) => (
-                    <tr key={row.name}>
-                      <td><code>{row.name}</code></td>
-                      <td>
-                        <span className={`badge ${row.status === 'Active' ? 'bg-success' : 'bg-secondary'}`}>
-                          {row.status || '-'}
-                        </span>
-                      </td>
-                      <td>{row.age || '-'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
         </div>
+
+        <ResourceTable
+          rows={rows}
+          namespaced={namespaced}
+          loading={loading}
+          error={error}
+        />
       </div>
     </div>
   )
