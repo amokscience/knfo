@@ -1,3 +1,32 @@
+// Dark colors with sufficient contrast for white text (WCAG AA)
+const NS_COLORS = [
+  '#1565c0', // blue 800
+  '#6a1b9a', // purple 800
+  '#00695c', // teal 800
+  '#c62828', // red 800
+  '#e65100', // orange 900
+  '#2e7d32', // green 800
+  '#283593', // indigo 800
+  '#4527a0', // deep-purple 800
+  '#00838f', // cyan 800
+  '#558b2f', // light-green 800
+  '#f9a825', // amber 800  (dark enough bg, white still reads)
+  '#6d4c41', // brown 600
+  '#37474f', // blue-grey 700
+  '#ad1457', // pink 800
+  '#0277bd', // light-blue 800
+]
+
+// Simple djb2 hash so the same namespace always gets the same color
+function nsColor(name) {
+  if (!name) return NS_COLORS[0]
+  let hash = 5381
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 33) ^ name.charCodeAt(i)
+  }
+  return NS_COLORS[Math.abs(hash) % NS_COLORS.length]
+}
+
 export default function ResourceTable({ rows, namespaced, loading, error }) {
   if (loading) {
     return (
@@ -47,7 +76,16 @@ export default function ResourceTable({ rows, namespaced, loading, error }) {
           {rows.map((row, idx) => (
             <tr key={`${row.name}-${row.namespace}-${idx}`}>
               <td><code className="text-body">{row.name}</code></td>
-              {namespaced && <td><span className="badge text-bg-secondary">{row.namespace}</span></td>}
+              {namespaced && (
+                <td>
+                  <span
+                    className="badge"
+                    style={{ backgroundColor: nsColor(row.namespace), color: '#fff' }}
+                  >
+                    {row.namespace}
+                  </span>
+                </td>
+              )}
               <td>{row.status || <span className="text-secondary">—</span>}</td>
               <td className="text-nowrap">{row.age}</td>
             </tr>
