@@ -1,5 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 
+// Same djb2 palette used in ResourceTable
+const NS_COLORS = [
+  '#1565c0','#6a1b9a','#00695c','#c62828','#e65100',
+  '#2e7d32','#283593','#4527a0','#00838f','#558b2f',
+  '#f9a825','#6d4c41','#37474f','#ad1457','#0277bd',
+]
+function nsColor(name) {
+  if (!name) return NS_COLORS[0]
+  let hash = 5381
+  for (let i = 0; i < name.length; i++) hash = (hash * 33) ^ name.charCodeAt(i)
+  return NS_COLORS[Math.abs(hash) % NS_COLORS.length]
+}
+
 // Which mode label to show in the header badge
 const MODE_LABEL = {
   pods: 'Logs',
@@ -30,7 +43,6 @@ export default function DetailModal({ item, kind, onClose }) {
   const backdropRef = useRef()
 
   const modeLabel = MODE_LABEL[kind] ?? 'Describe'
-  const title = namespace ? `${name}  ·  ${namespace}` : name
 
   useEffect(() => {
     if (!item) return
@@ -109,16 +121,30 @@ export default function DetailModal({ item, kind, onClose }) {
           className="d-flex align-items-center justify-content-between px-4 py-3"
           style={{ borderBottom: '1px solid #334155', flexShrink: 0 }}
         >
-          <div className="d-flex align-items-center gap-2 text-truncate">
-            <span className="badge text-bg-primary text-uppercase" style={{ fontSize: '0.7rem' }}>
-              {modeLabel}
-            </span>
-            <span className="fw-semibold text-white text-truncate">{title}</span>
+          <div className="d-flex align-items-center gap-3" style={{ minWidth: 0 }}>
+            <div style={{ flexShrink: 0 }}>
+              <span className="badge text-bg-primary text-uppercase" style={{ fontSize: '0.7rem' }}>
+                {modeLabel}
+              </span>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div className="fw-semibold text-white text-truncate" style={{ userSelect: 'text' }}>{name}</div>
+            </div>
+            {namespace && (
+              <div style={{ flexShrink: 0 }}>
+                <span
+                  className="badge"
+                  style={{ backgroundColor: nsColor(namespace), color: '#fff', fontSize: '0.75rem', userSelect: 'text' }}
+                >
+                  {namespace}
+                </span>
+              </div>
+            )}
           </div>
           <div className="d-flex align-items-center gap-2 ms-3" style={{ flexShrink: 0 }}>
             <button
               className="btn btn-sm"
-              style={{ color: copied ? '#4ade80' : '#94a3b8', padding: '2px 6px', lineHeight: 1 }}
+              style={{ color: copied ? '#4ade80' : '#e2e8f0', padding: '2px 6px', lineHeight: 1 }}
               onClick={handleCopy}
               disabled={!output}
               title="Copy to clipboard"
