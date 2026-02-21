@@ -36,6 +36,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/knfo:${{ github.ref_name }}-${{ steps.short_sha.outputs.sha }}
 
       - name: Update GitOps repo with new image tag
+        continue-on-error: true
         run: |
           git clone https://github.com/amokscience/argo-apps.git
           cd argo-apps
