@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import ResourceTable from './components/ResourceTable'
 import { resourceGroups } from './resources'
@@ -11,6 +11,10 @@ export default function App() {
   const [namespaced, setNamespaced] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [isCached, setIsCached] = useState(false)
+
+  // Cache: { [kind]: { rows, namespaced, error } }
+  const cache = useRef({})
 
   // Label for the currently selected kind
   const selectedLabel = resourceGroups
@@ -19,23 +23,41 @@ export default function App() {
 
   const handleSelect = (kind) => {
     setSelectedKind(kind)
-    setRows(null)
-    setError('')
+    // Restore from cache immediately if available, otherwise reset
+    if (cache.current[kind]) {
+      const cached = cache.current[kind]
+      setRows(cached.rows)
+      setNamespaced(cached.namespaced)
+      setError(cached.error)
+      setIsCached(true)
+    } else {
+      setRows(null)
+      setNamespaced(false)
+      setError('')
+      setIsCached(false)
+    }
   }
 
-  const fetchResources = async () => {
+  const fetchResources = async (kind = selectedKind) => {
     setLoading(true)
     setError('')
+    setIsCached(false)
     try {
-      const response = await fetch(`/api/resources?kind=${encodeURIComponent(selectedKind)}`)
+      const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error || 'Request failed')
       }
-      setNamespaced(!!data.namespaced)
-      setRows(Array.isArray(data.rows) ? data.rows : [])
+      const newRows = Array.isArray(data.rows) ? data.rows : []
+      const newNamespaced = !!data.namespaced
+      // Overwrite cache for this kind
+      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '' }
+      setNamespaced(newNamespaced)
+      setRows(newRows)
     } catch (err) {
-      setError(err.message || 'Failed to fetch resources')
+      const msg = err.message || 'Failed to fetch resources'
+      cache.current[kind] = { rows: [], namespaced: false, error: msg }
+      setError(msg)
       setRows([])
     } finally {
       setLoading(false)
@@ -68,7 +90,12 @@ export default function App() {
             }
           </button>
           {rows !== null && !loading && !error && (
-            <span className="text-secondary small">{rows.length} item{rows.length !== 1 ? 's' : ''}</span>
+            <span className="text-secondary small">
+              {rows.length} item{rows.length !== 1 ? 's' : ''}
+              {isCached && (
+                <span className="badge text-bg-warning ms-2" title="Showing cached result — click Fetch to refresh">cached</span>
+              )}
+            </span>
           )}
         </div>
 
