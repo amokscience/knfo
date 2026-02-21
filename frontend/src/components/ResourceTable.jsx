@@ -27,7 +27,7 @@ function nsColor(name) {
   return NS_COLORS[Math.abs(hash) % NS_COLORS.length]
 }
 
-export default function ResourceTable({ rows, namespaced, loading, error }) {
+export default function ResourceTable({ rows, namespaced, loading, error, onRowClick }) {
   if (loading) {
     return (
       <div className="d-flex align-items-center gap-2 text-secondary py-5 justify-content-center">
@@ -74,7 +74,12 @@ export default function ResourceTable({ rows, namespaced, loading, error }) {
         </thead>
         <tbody>
           {rows.map((row, idx) => (
-            <tr key={`${row.name}-${row.namespace}-${idx}`}>
+            <tr
+              key={`${row.name}-${row.namespace}-${idx}`}
+              onClick={() => onRowClick?.(row)}
+              style={{ cursor: onRowClick ? 'pointer' : 'default' }}
+              title={onRowClick ? 'Click to view details' : undefined}
+            >
               <td><code className="text-body">{row.name}</code></td>
               {namespaced && (
                 <td>
