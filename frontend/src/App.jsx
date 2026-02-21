@@ -16,6 +16,8 @@ export default function App() {
   const [error, setError] = useState('')
   const [isCached, setIsCached] = useState(false)
   const [modalItem, setModalItem] = useState(null)
+  // Per-kind fetch status for sidebar indicators: 'loading' | 'ok' | 'error'
+  const [kindStatus, setKindStatus] = useState({})
 
   // Cache: { [kind]: { rows, namespaced, error } }
   const cache = useRef({})
@@ -46,6 +48,7 @@ export default function App() {
     setLoading(true)
     setError('')
     setIsCached(false)
+    setKindStatus(prev => ({ ...prev, [kind]: 'loading' }))
     try {
       const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
       if (!response.ok) {
@@ -58,6 +61,7 @@ export default function App() {
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
       cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '' }
+      setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
       // Only update UI if this kind is still selected
       if (kind === selectedKindRef.current) {
         setNamespaced(newNamespaced)
@@ -66,6 +70,7 @@ export default function App() {
     } catch (err) {
       const msg = err.message || 'Failed to fetch resources'
       cache.current[kind] = { rows: [], namespaced: false, error: msg }
+      setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
       if (kind === selectedKindRef.current) {
         setError(msg)
         setRows([])
@@ -77,13 +82,18 @@ export default function App() {
 
   // Silent background prefetch — populates cache only, no loading spinner
   const prefetchKind = useCallback(async (kind) => {
+    setKindStatus(prev => ({ ...prev, [kind]: 'loading' }))
     try {
       const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
-      if (!response.ok) return
+      if (!response.ok) {
+        setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
+        return
+      }
       const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
       cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '' }
+      setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
       // If user navigated to this kind while it was being prefetched, show now
       if (kind === selectedKindRef.current) {
         setRows(newRows)
@@ -92,7 +102,9 @@ export default function App() {
         setIsCached(false)
         setLoading(false)
       }
-    } catch (_) { /* silent */ }
+    } catch (_) {
+      setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
+    }
   }, [])
 
   // Background prefetch loop — runs after mount, 600ms between each kind
@@ -131,7 +143,7 @@ export default function App() {
         style={{ width: '220px', background: '#0f172a' }}
       >
         <span className="fw-bold text-white mb-3 ms-1">knfo</span>
-        <Sidebar selected={selectedKind} onSelect={handleSelect} />
+        <Sidebar selected={selectedKind} onSelect={handleSelect} kindStatus={kindStatus} />
       </div>
 
       {/* Main */}
