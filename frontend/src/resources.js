@@ -62,4 +62,38 @@ export const resourceGroups = [
       { label: 'Pod Disruption Budgets', kind: 'poddisruptionbudgets' },
     ],
   },
+  {
+    label: 'CRDs',
+    items: [
+      { label: 'Custom Resource Defs', kind: 'customresourcedefinitions' },
+    ],
+  },
+  {
+    label: 'Argo CD',
+    items: [
+      { label: 'Applications',    kind: 'applications' },
+      { label: 'App Projects',    kind: 'appprojects' },
+      { label: 'Application Sets', kind: 'applicationsets' },
+    ],
+  },
+  {
+    label: 'External Secrets',
+    items: [
+      { label: 'External Secrets',         kind: 'externalsecrets' },
+      { label: 'Secret Stores',            kind: 'secretstores' },
+      { label: 'Cluster Secret Stores',    kind: 'clustersecretstores' },
+      { label: 'Cluster External Secrets', kind: 'clusterexternalsecrets' },
+    ],
+  },
+  {
+    label: 'Monitoring',
+    items: [
+      { label: 'Service Monitors', kind: 'servicemonitors' },
+      { label: 'Prometheus Rules', kind: 'prometheusrules' },
+      { label: 'Pod Monitors',     kind: 'podmonitors' },
+      { label: 'Probes',           kind: 'probes' },
+      { label: 'Alert Managers',   kind: 'alertmanagers' },
+      { label: 'Prometheuses',     kind: 'prometheuses' },
+    ],
+  },
 ]
