@@ -235,6 +235,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./web")))
 	mux.HandleFunc("/api/resources", resourcesHandler)
+	mux.HandleFunc("/api/detail", detailHandler)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -323,6 +324,127 @@ func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 		})
 	}
 	return rows, nil
+}
+
+// ── Detail endpoint ─────────────────────────────────────────────────────────
+
+// detailMode controls what kubectl verb is used for the detail view.
+type detailMode int
+
+const (
+	detailLogs     detailMode = iota // kubectl logs
+	detailYAML                       // kubectl get -o yaml
+	detailDescribe                   // kubectl describe
+)
+
+type detailDef struct {
+	mode        detailMode
+	kubectlName string
+	namespaced  bool
+	tailLines   int // only for logs
+}
+
+var detailRegistry = map[string]detailDef{
+	// logs
+	"pods": {mode: detailLogs, kubectlName: "pod", namespaced: true, tailLines: 200},
+
+	// yaml — raw content most useful
+	"secrets":                {mode: detailYAML, kubectlName: "secret", namespaced: true},
+	"configmaps":             {mode: detailYAML, kubectlName: "configmap", namespaced: true},
+	"persistentvolumes":      {mode: detailYAML, kubectlName: "pv"},
+	"persistentvolumeclaims": {mode: detailYAML, kubectlName: "pvc", namespaced: true},
+	"resourcequotas":         {mode: detailYAML, kubectlName: "resourcequota", namespaced: true},
+	"limitranges":            {mode: detailYAML, kubectlName: "limitrange", namespaced: true},
+	"ingresses":              {mode: detailYAML, kubectlName: "ingress", namespaced: true},
+	"ingressclasses":         {mode: detailYAML, kubectlName: "ingressclass"},
+	"networkpolicies":        {mode: detailYAML, kubectlName: "networkpolicy", namespaced: true},
+	"storageclasses":         {mode: detailYAML, kubectlName: "storageclass"},
+	"volumeattachments":      {mode: detailYAML, kubectlName: "volumeattachment"},
+	"roles":                  {mode: detailYAML, kubectlName: "role", namespaced: true},
+	"rolebindings":           {mode: detailYAML, kubectlName: "rolebinding", namespaced: true},
+	"clusterroles":           {mode: detailYAML, kubectlName: "clusterrole"},
+	"clusterrolebindings":    {mode: detailYAML, kubectlName: "clusterrolebinding"},
+	"poddisruptionbudgets":   {mode: detailYAML, kubectlName: "pdb", namespaced: true},
+	"serviceaccounts":        {mode: detailYAML, kubectlName: "serviceaccount", namespaced: true},
+	"cronjobs":               {mode: detailYAML, kubectlName: "cronjob", namespaced: true},
+	"endpoints":              {mode: detailYAML, kubectlName: "endpoints", namespaced: true},
+	"services":               {mode: detailYAML, kubectlName: "service", namespaced: true},
+
+	// describe — human summary most useful
+	"namespaces":               {mode: detailDescribe, kubectlName: "namespace"},
+	"nodes":                    {mode: detailDescribe, kubectlName: "node"},
+	"events":                   {mode: detailDescribe, kubectlName: "event", namespaced: true},
+	"deployments":              {mode: detailDescribe, kubectlName: "deployment", namespaced: true},
+	"replicasets":              {mode: detailDescribe, kubectlName: "replicaset", namespaced: true},
+	"statefulsets":             {mode: detailDescribe, kubectlName: "statefulset", namespaced: true},
+	"daemonsets":               {mode: detailDescribe, kubectlName: "daemonset", namespaced: true},
+	"jobs":                     {mode: detailDescribe, kubectlName: "job", namespaced: true},
+	"horizontalpodautoscalers": {mode: detailDescribe, kubectlName: "hpa", namespaced: true},
+}
+
+func detailHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	ns := strings.TrimSpace(r.URL.Query().Get("namespace"))
+
+	if kind == "" || name == "" {
+		http.Error(w, "missing required query parameters: kind, name", http.StatusBadRequest)
+		return
+	}
+
+	def, ok := detailRegistry[kind]
+	if !ok {
+		http.Error(w, fmt.Sprintf("no detail view for kind: %q", kind), http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var args []string
+	switch def.mode {
+	case detailLogs:
+		args = []string{"logs", name, fmt.Sprintf("--tail=%d", def.tailLines)}
+		if def.namespaced && ns != "" {
+			args = append(args, "-n", ns)
+		}
+	case detailYAML:
+		args = []string{"get", def.kubectlName, name, "-o", "yaml"}
+		if def.namespaced && ns != "" {
+			args = append(args, "-n", ns)
+		}
+	case detailDescribe:
+		args = []string{"describe", def.kubectlName, name}
+		if def.namespaced && ns != "" {
+			args = append(args, "-n", ns)
+		}
+	}
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	out, err := cmd.CombinedOutput()
+	raw := strings.TrimSpace(string(out))
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			log.Printf("detail timeout: kind=%s name=%s", kind, name)
+			raw = "kubectl command timed out"
+		} else {
+			log.Printf("detail error: kind=%s name=%s: %v output=%s", kind, name, err, raw)
+			raw = sanitizeError(fmt.Errorf("%s", raw))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": raw})
+		return
+	}
+
+	log.Printf("detail OK kind=%s name=%s remote=%s", kind, name, r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"output": raw})
 }
 
 func sanitizeError(err error) string {
