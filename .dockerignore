@@ -1,0 +1,9 @@
+.git
+*.exe
+*.log
+node_modules
+web/node_modules
+.env
+.env.*
+.DS_Store
+Thumbs.db
