@@ -80,11 +80,7 @@ jobs:
   promote:
     needs: build
     runs-on: ubuntu-latest
-    if: |
-      success() &&
-      (github.ref == 'refs/heads/dev' ||
-       github.ref == 'refs/heads/qa' ||
-       github.ref == 'refs/heads/staging')
+    if: false
 
     steps:
       - name: Checkout repository
