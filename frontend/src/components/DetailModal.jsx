@@ -10,6 +10,15 @@ const MODE_LABEL = {
   rolebindings: 'YAML', clusterroles: 'YAML', clusterrolebindings: 'YAML',
   poddisruptionbudgets: 'YAML', serviceaccounts: 'YAML', cronjobs: 'YAML',
   endpoints: 'YAML', services: 'YAML',
+  // CRDs
+  customresourcedefinitions: 'YAML',
+  // Argo CD
+  appprojects: 'YAML', applicationsets: 'YAML',
+  // External Secrets
+  externalsecrets: 'YAML', secretstores: 'YAML',
+  clustersecretstores: 'YAML', clusterexternalsecrets: 'YAML',
+  // Monitoring
+  servicemonitors: 'YAML', prometheusrules: 'YAML', podmonitors: 'YAML', probes: 'YAML',
 }
 
 export default function DetailModal({ item, kind, onClose }) {
