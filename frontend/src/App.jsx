@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import ResourceTable from './components/ResourceTable'
 import DetailModal from './components/DetailModal'
 import { resourceGroups } from './resources'
+import { refLinks } from './refLinks'
 
 const firstKind = resourceGroups[0].items[0].kind
 // All kinds in sidebar display order
@@ -191,6 +192,16 @@ export default function App() {
       <div className="flex-grow-1 p-4 overflow-auto">
         <div className="d-flex align-items-center gap-3 mb-2">
           <h1 className="h5 mb-0 fw-semibold">{selectedLabel}</h1>
+          {refLinks[selectedKind] && (
+            <a
+              href={refLinks[selectedKind]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm btn-outline-secondary"
+            >
+              Ref
+            </a>
+          )}
           <button
             className="btn btn-sm btn-primary"
             onClick={() => fetchResources()}
@@ -202,8 +213,8 @@ export default function App() {
             }
           </button>
           {rows !== null && !loading && !error && (
-            <span className="text-secondary small">
-              {rows.length} item{rows.length !== 1 ? 's' : ''}
+            <span className="d-inline-flex align-items-center gap-2 text-secondary small">
+              <span>{rows.length} item{rows.length !== 1 ? 's' : ''}</span>
               {isCached && (
                 <span className="d-inline-flex align-items-center gap-1">
                   <span className="badge text-bg-warning" title="Showing cached result — click Refresh to repull">cached</span>
