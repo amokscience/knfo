@@ -207,6 +207,13 @@ export default function DetailModal({ item, kind, onClose }) {
 
         {/* Body */}
         <div className="overflow-auto p-3" style={{ flex: 1 }}>
+          {detailCmd && (
+            <div className="d-inline-flex align-items-center gap-1 mb-2">
+              <code style={{ fontSize: '0.78rem', background: '#0f172a', borderRadius: '4px', padding: '3px 8px', color: '#94a3b8', userSelect: 'text' }}>
+                {detailCmd}
+              </code>
+            </div>
+          )}
           {loading && (
             <div className="d-flex align-items-center gap-2 text-secondary py-4 justify-content-center">
               <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
