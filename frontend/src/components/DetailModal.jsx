@@ -140,27 +140,31 @@ export default function DetailModal({ item, kind, onClose }) {
                 </span>
               </div>
             )}
+            {/* Copy button — lives in title row, right of namespace */}
+            <div style={{ flexShrink: 0 }}>
+              <button
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #64748b',
+                  borderRadius: '4px',
+                  color: copied ? '#4ade80' : '#f1f5f9',
+                  padding: '2px 7px',
+                  lineHeight: 1.4,
+                  fontSize: '0.78rem',
+                  cursor: output ? 'pointer' : 'not-allowed',
+                  opacity: output ? 1 : 0.4,
+                }}
+                onClick={handleCopy}
+                disabled={!output}
+                title="Copy to clipboard"
+              >
+                {copied
+                  ? <i className="bi bi-check2" />
+                  : <i className="bi bi-clipboard" />}
+              </button>
+            </div>
           </div>
           <div className="d-flex align-items-center gap-2 ms-3" style={{ flexShrink: 0 }}>
-            <button
-              style={{
-                background: 'transparent',
-                border: '1px solid #64748b',
-                borderRadius: '4px',
-                color: copied ? '#4ade80' : '#f1f5f9',
-                padding: '3px 8px',
-                lineHeight: 1,
-                cursor: output ? 'pointer' : 'not-allowed',
-                opacity: output ? 1 : 0.4,
-              }}
-              onClick={handleCopy}
-              disabled={!output}
-              title="Copy to clipboard"
-            >
-              {copied
-                ? <i className="bi bi-check2" style={{ fontSize: '1rem' }} />
-                : <i className="bi bi-clipboard" style={{ fontSize: '1rem' }} />}
-            </button>
             <button
               className="btn-close btn-close-white"
               onClick={onClose}
