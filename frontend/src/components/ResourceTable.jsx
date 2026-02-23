@@ -109,14 +109,13 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
           {rows.map((row, idx) => {
             const sev = statusSeverity(row.status)
             const rowClass = sev === 'error' ? 'table-danger' : sev === 'warning' ? 'table-warning' : ''
-            const rowStyle = sev === 'zero' ? { backgroundColor: '#6b7280', color: '#f1f5f9' } : undefined
+            const zeroTd = sev === 'zero' ? { backgroundColor: '#6b7280', color: '#f1f5f9' } : undefined
             return (
             <tr
               key={`${row.name}-${row.namespace}-${idx}`}
               className={rowClass}
-              style={rowStyle}
             >
-              <td>
+              <td style={zeroTd}>
                 <code
                   className="text-body"
                   onClick={() => onRowClick?.(row)}
@@ -125,7 +124,7 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
                 >{row.name}</code>
               </td>
               {namespaced && (
-                <td>
+                <td style={zeroTd}>
                   <span
                     className="badge"
                     style={{ backgroundColor: nsColor(row.namespace), color: '#fff' }}
@@ -134,12 +133,12 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
                   </span>
                 </td>
               )}
-              <td>
+              <td style={zeroTd}>
                 {sev === 'error' && <i className="bi bi-exclamation-circle-fill text-danger me-1" />}
                 {sev === 'warning' && <i className="bi bi-exclamation-triangle-fill text-warning me-1" />}
                 {row.status || <span className="text-secondary">—</span>}
               </td>
-              <td className="text-nowrap">{row.age}</td>
+              <td className="text-nowrap" style={zeroTd}>{row.age}</td>
             </tr>
             )
           })}

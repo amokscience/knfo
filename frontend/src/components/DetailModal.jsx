@@ -37,9 +37,11 @@ const MODE_LABEL = {
 export default function DetailModal({ item, kind, onClose }) {
   const { name, namespace } = item ?? {}
   const [output, setOutput] = useState(null)
+  const [detailCmd, setDetailCmd] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedCmd, setCopiedCmd] = useState(false)
   const backdropRef = useRef()
 
   const modeLabel = MODE_LABEL[kind] ?? 'Describe'
@@ -63,19 +65,30 @@ export default function DetailModal({ item, kind, onClose }) {
         }
         return res.json()
       })
-      .then((data) => setOutput(data.output ?? ''))
+      .then((data) => {
+        setOutput(data.output ?? '')
+        setDetailCmd(data.command ?? '')
+      })
       .catch((err) => setError(err.message || 'Failed to load detail'))
       .finally(() => setLoading(false))
   }, [item, kind, name, namespace])
 
   // Reset copied state when item changes
-  useEffect(() => { setCopied(false) }, [item])
+  useEffect(() => { setCopied(false); setCopiedCmd(false); setDetailCmd('') }, [item])
 
   const handleCopy = () => {
     if (!output) return
     navigator.clipboard.writeText(output).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const handleCopyCmd = () => {
+    if (!detailCmd) return
+    navigator.clipboard.writeText(detailCmd).then(() => {
+      setCopiedCmd(true)
+      setTimeout(() => setCopiedCmd(false), 2000)
     })
   }
 
@@ -156,11 +169,31 @@ export default function DetailModal({ item, kind, onClose }) {
                 }}
                 onClick={handleCopy}
                 disabled={!output}
-                title="Copy to clipboard"
+                title="Copy contents to clipboard"
               >
                 {copied
                   ? <i className="bi bi-check2" />
                   : <i className="bi bi-clipboard" />}
+              </button>
+              <button
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #64748b',
+                  borderRadius: '4px',
+                  color: copiedCmd ? '#4ade80' : '#f1f5f9',
+                  padding: '2px 7px',
+                  lineHeight: 1.4,
+                  fontSize: '0.78rem',
+                  cursor: detailCmd ? 'pointer' : 'not-allowed',
+                  opacity: detailCmd ? 1 : 0.4,
+                }}
+                onClick={handleCopyCmd}
+                disabled={!detailCmd}
+                title={detailCmd ? `Copy command: ${detailCmd}` : 'Copy command'}
+              >
+                {copiedCmd
+                  ? <i className="bi bi-check2" />
+                  : <i className="bi bi-terminal" />}
               </button>
             </div>
           </div>

@@ -554,8 +554,9 @@ func detailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("detail OK kind=%s name=%s remote=%s", kind, name, r.RemoteAddr)
+	cmdStr := "kubectl " + strings.Join(args, " ")
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"output": raw})
+	_ = json.NewEncoder(w).Encode(map[string]string{"output": raw, "command": cmdStr})
 }
 
 func sanitizeError(err error) string {
