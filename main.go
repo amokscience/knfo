@@ -399,8 +399,20 @@ func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 	var list struct {
 		Items []map[string]interface{} `json:"items"`
 	}
-	if err := json.Unmarshal(out, &list); err != nil {
-		return nil, fmt.Errorf("failed to parse kubectl output")
+	// kubectl may prefix output with deprecation warnings (e.g. "Warning: v1 Endpoints is deprecated...")
+	// Strip any leading non-JSON lines before parsing.
+	jsonBytes := out
+	if len(out) > 0 && out[0] != '{' {
+		filtered := []string{}
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.HasPrefix(line, "{") || len(filtered) > 0 {
+				filtered = append(filtered, line)
+			}
+		}
+		jsonBytes = []byte(strings.Join(filtered, "\n"))
+	}
+	if err := json.Unmarshal(jsonBytes, &list); err != nil {
+		return nil, fmt.Errorf("failed to parse kubectl output: %s", strings.TrimSpace(string(out)))
 	}
 
 	rows := make([]resourceRow, 0, len(list.Items))
