@@ -81,19 +81,26 @@ export default function App() {
     setKindStatus(prev => ({ ...prev, [kind]: 'loading' }))
     try {
       const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
+      const text = await response.text()
+      let data
+      try { data = JSON.parse(text) } catch (_) { data = {} }
+      const errCmd = data.command ?? ''
       if (!response.ok) {
-        const text = await response.text()
-        let msg
-        try { msg = JSON.parse(text)?.error } catch (_) { msg = text.trim() }
-        throw new Error(msg || `Request failed (${response.status})`)
+        const msg = data.error || text.trim() || `Request failed (${response.status})`
+        cache.current[kind] = { rows: [], namespaced: false, error: msg, cachedAt: Date.now(), command: errCmd }
+        setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
+        if (kind === selectedKindRef.current) {
+          setError(msg)
+          setRows([])
+          setCommand(errCmd)
+        }
+        return
       }
-      const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
       const newCommand = data.command ?? ''
       cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now(), command: newCommand }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
-      // Only update UI if this kind is still selected
       if (kind === selectedKindRef.current) {
         setNamespaced(newNamespaced)
         setRows(newRows)
@@ -101,7 +108,7 @@ export default function App() {
       }
     } catch (err) {
       const msg = err.message || 'Failed to fetch resources'
-      cache.current[kind] = { rows: [], namespaced: false, error: msg, cachedAt: Date.now() }
+      cache.current[kind] = { rows: [], namespaced: false, error: msg, cachedAt: Date.now(), command: '' }
       setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
       if (kind === selectedKindRef.current) {
         setError(msg)

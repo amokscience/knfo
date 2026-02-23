@@ -354,24 +354,25 @@ func resourcesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cmdArgs := []string{"kubectl", "get", def.kubectlName}
+	if def.namespaced {
+		cmdArgs = append(cmdArgs, "-A")
+	}
+	cmdStr := strings.Join(cmdArgs, " ")
+
 	rows, err := runKubectl(r.Context(), def)
 	if err != nil {
 		log.Printf("ERROR kind=%s remote=%s: %v", kind, r.RemoteAddr, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(err)})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(err), "command": cmdStr})
 		return
 	}
 
 	log.Printf("OK kind=%s remote=%s rows=%d", kind, r.RemoteAddr, len(rows))
 
-	cmdArgs := []string{"kubectl", "get", def.kubectlName}
-	if def.namespaced {
-		cmdArgs = append(cmdArgs, "-A")
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resourceResponse{Namespaced: def.namespaced, Rows: rows, Command: strings.Join(cmdArgs, " ")})
+	_ = json.NewEncoder(w).Encode(resourceResponse{Namespaced: def.namespaced, Rows: rows, Command: cmdStr})
 }
 
 func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
@@ -537,6 +538,7 @@ func detailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	cmdStr := "kubectl " + strings.Join(args, " ")
 	out, err := cmd.CombinedOutput()
 	raw := strings.TrimSpace(string(out))
 	if err != nil {
@@ -549,12 +551,11 @@ func detailHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": raw})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": raw, "command": cmdStr})
 		return
 	}
 
 	log.Printf("detail OK kind=%s name=%s remote=%s", kind, name, r.RemoteAddr)
-	cmdStr := "kubectl " + strings.Join(args, " ")
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"output": raw, "command": cmdStr})
 }

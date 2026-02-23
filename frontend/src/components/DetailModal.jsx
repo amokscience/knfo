@@ -57,18 +57,17 @@ export default function DetailModal({ item, kind, onClose }) {
 
     fetch(`/api/detail?${params}`)
       .then(async (res) => {
+        const text = await res.text()
+        let data
+        try { data = JSON.parse(text) } catch (_) { data = {} }
         if (!res.ok) {
-          const text = await res.text()
-          let msg
-          try { msg = JSON.parse(text)?.error } catch (_) { msg = text.trim() }
-          throw new Error(msg || `Request failed (${res.status})`)
+          setDetailCmd(data.command ?? '')
+          throw new Error(data.error || text.trim() || `Request failed (${res.status})`)
         }
-        return res.json()
-      })
-      .then((data) => {
-        setOutput(data.output ?? '')
         setDetailCmd(data.command ?? '')
+        return data
       })
+      .then((data) => setOutput(data.output ?? ''))
       .catch((err) => setError(err.message || 'Failed to load detail'))
       .finally(() => setLoading(false))
   }, [item, kind, name, namespace])
