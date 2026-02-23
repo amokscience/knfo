@@ -8,6 +8,20 @@ const firstKind = resourceGroups[0].items[0].kind
 // All kinds in sidebar display order
 const allKinds = resourceGroups.flatMap(g => g.items.map(i => i.kind))
 
+function timeAgo(ts, now = Date.now()) {
+  if (!ts) return ''
+  const secs = Math.floor((now - ts) / 1000)
+  if (secs < 5)  return 'just now'
+  if (secs < 60) return `${secs}s ago`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+  return `${Math.floor(secs / 3600)}h ago`
+}
+
+function fmtTime(ts) {
+  if (!ts) return ''
+  return new Date(ts).toLocaleTimeString()
+}
+
 export default function App() {
   const [selectedKind, setSelectedKind] = useState(firstKind)
   const [rows, setRows] = useState(null)       // null = not yet fetched
@@ -15,6 +29,8 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isCached, setIsCached] = useState(false)
+  const [cacheTime, setCacheTime] = useState(null)   // timestamp of current view's cache
+  const [now, setNow] = useState(Date.now())          // ticks every second while cached
   const [modalItem, setModalItem] = useState(null)
   // Per-kind fetch status for sidebar indicators: 'loading' | 'ok' | 'error'
   const [kindStatus, setKindStatus] = useState({})
@@ -26,6 +42,13 @@ export default function App() {
   // Set to false to stop the background prefetch loop
   const prefetchRunning = useRef(true)
 
+  // Tick 'now' every second while showing a cached result
+  useEffect(() => {
+    if (!isCached) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [isCached])
+
   const handleSelect = (kind) => {
     selectedKindRef.current = kind
     setSelectedKind(kind)
@@ -35,6 +58,7 @@ export default function App() {
       setNamespaced(cached.namespaced)
       setError(cached.error)
       setIsCached(true)
+      setCacheTime(cached.cachedAt ?? null)
     } else {
       setRows(null)
       setNamespaced(false)
@@ -60,7 +84,7 @@ export default function App() {
       const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
-      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '' }
+      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now() }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
       // Only update UI if this kind is still selected
       if (kind === selectedKindRef.current) {
@@ -69,7 +93,7 @@ export default function App() {
       }
     } catch (err) {
       const msg = err.message || 'Failed to fetch resources'
-      cache.current[kind] = { rows: [], namespaced: false, error: msg }
+      cache.current[kind] = { rows: [], namespaced: false, error: msg, cachedAt: Date.now() }
       setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
       if (kind === selectedKindRef.current) {
         setError(msg)
@@ -92,7 +116,7 @@ export default function App() {
       const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
-      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '' }
+      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now() }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
       // If user navigated to this kind while it was being prefetched, show now
       if (kind === selectedKindRef.current) {
@@ -100,6 +124,7 @@ export default function App() {
         setNamespaced(newNamespaced)
         setError('')
         setIsCached(false)
+        setCacheTime(null)
         setLoading(false)
       }
     } catch (_) {
@@ -164,7 +189,13 @@ export default function App() {
             <span className="text-secondary small">
               {rows.length} item{rows.length !== 1 ? 's' : ''}
               {isCached && (
-                <span className="badge text-bg-warning ms-2" title="Showing cached result — click Refresh to repull">cached</span>
+                <span className="d-inline-flex align-items-center gap-1">
+                  <span className="badge text-bg-warning" title="Showing cached result — click Refresh to repull">cached</span>
+                  <span className="text-secondary" style={{ fontSize: '0.75rem' }} title={fmtTime(cacheTime)}>
+                    {timeAgo(cacheTime, now)}
+                  </span>
+                  <span className="text-secondary" style={{ fontSize: '0.75rem', opacity: 0.6 }}>· {fmtTime(cacheTime)}</span>
+                </span>
               )}
             </span>
           )}
