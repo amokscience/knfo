@@ -4,6 +4,7 @@ import ResourceTable from './components/ResourceTable'
 import DetailModal from './components/DetailModal'
 import { resourceGroups } from './resources'
 import { refLinks } from './refLinks'
+import { rowsHealth } from './utils/statusSeverity'
 
 const firstKind = resourceGroups[0].items[0].kind
 // All kinds in sidebar display order
@@ -37,6 +38,8 @@ export default function App() {
   const [modalItem, setModalItem] = useState(null)
   // Per-kind fetch status for sidebar indicators: 'loading' | 'ok' | 'error'
   const [kindStatus, setKindStatus] = useState({})
+  // Per-kind data health: 'error' | 'warning' | null (based on row statuses)
+  const [kindHealth, setKindHealth] = useState({})
 
   // Cache: { [kind]: { rows, namespaced, error } }
   const cache = useRef({})
@@ -102,6 +105,7 @@ export default function App() {
       const newCommand = data.command ?? ''
       cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now(), command: newCommand }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
+      setKindHealth(prev => ({ ...prev, [kind]: rowsHealth(newRows) }))
       if (kind === selectedKindRef.current) {
         setNamespaced(newNamespaced)
         setRows(newRows)
@@ -134,6 +138,7 @@ export default function App() {
       const newNamespaced = !!data.namespaced
       cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now(), command: data.command ?? '' }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
+      setKindHealth(prev => ({ ...prev, [kind]: rowsHealth(newRows) }))
       // If user navigated to this kind while it was being prefetched, show now
       if (kind === selectedKindRef.current) {
         setRows(newRows)
@@ -185,7 +190,7 @@ export default function App() {
         style={{ width: '220px', background: '#0f172a' }}
       >
         <span className="fw-bold text-white mb-3 ms-1">knfo</span>
-        <Sidebar selected={selectedKind} onSelect={handleSelect} kindStatus={kindStatus} />
+        <Sidebar selected={selectedKind} onSelect={handleSelect} kindStatus={kindStatus} kindHealth={kindHealth} />
       </div>
 
       {/* Main */}

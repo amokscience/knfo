@@ -27,38 +27,7 @@ function nsColor(name) {
   return NS_COLORS[Math.abs(hash) % NS_COLORS.length]
 }
 
-// Status severity classifier
-// Returns 'error', 'warning', or null
-const ERROR_PATTERNS = [
-  /\bfailed?\b/i, /\bdegraded\b/i, /\berror\b/i, /\bcrashloop/i,
-  /\boomkilled\b/i, /\bimagepullbackoff\b/i, /\berrimage/i,
-  /\bterminating\b/i, /\bunknown\b/i, /\bnot\s*ready\b/i,
-  /\bunhealthy\b/i, /\bcrash\b/i, /\bevicted\b/i, /\binvalid\b/i,
-  /\bout\s*of\s*sync\b/i,
-]
-const WARN_PATTERNS = [
-  /\bpending\b/i, /\bsyncing\b/i, /\bprogressing\b/i, /\bwaiting\b/i,
-  /\bcontainercreating\b/i, /\bpodinitializing\b/i, /\binit:/i,
-  /\bupdating\b/i, /\bscaling\b/i, /\breconciling\b/i, /\bdeploying\b/i,
-  /\bstarting\b/i, /\bnotinstalled\b/i,
-]
-
-function statusSeverity(status) {
-  if (!status) return null
-  // Handle "X/Y" ratio strings, optionally with trailing label e.g. "0/1 ready", "1/2"
-  const ratio = status.match(/(\d+)\/(\d+)/)
-  if (ratio) {
-    const ready = Number(ratio[1])
-    const total = Number(ratio[2])
-    if (ready === 0 && total === 0) return 'zero'
-    if (ready === 0 && total > 0) return 'error'
-    if (ready < total) return 'warning'
-    return null
-  }
-  for (const re of ERROR_PATTERNS) if (re.test(status)) return 'error'
-  for (const re of WARN_PATTERNS) if (re.test(status)) return 'warning'
-  return null
-}
+import { statusSeverity } from '../utils/statusSeverity'
 
 export default function ResourceTable({ rows, namespaced, loading, error, onRowClick }) {
   if (loading) {
