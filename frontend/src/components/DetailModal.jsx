@@ -143,8 +143,16 @@ export default function DetailModal({ item, kind, onClose }) {
           </div>
           <div className="d-flex align-items-center gap-2 ms-3" style={{ flexShrink: 0 }}>
             <button
-              className="btn btn-sm"
-              style={{ color: copied ? '#4ade80' : '#e2e8f0', padding: '2px 6px', lineHeight: 1 }}
+              style={{
+                background: 'transparent',
+                border: '1px solid #64748b',
+                borderRadius: '4px',
+                color: copied ? '#4ade80' : '#f1f5f9',
+                padding: '3px 8px',
+                lineHeight: 1,
+                cursor: output ? 'pointer' : 'not-allowed',
+                opacity: output ? 1 : 0.4,
+              }}
               onClick={handleCopy}
               disabled={!output}
               title="Copy to clipboard"
