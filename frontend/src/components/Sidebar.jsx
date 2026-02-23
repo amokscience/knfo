@@ -19,7 +19,23 @@ function StatusDot({ status }) {
   return <span style={{ width: '0.55rem', height: '0.55rem', display: 'inline-block', flexShrink: 0 }} />
 }
 
-export default function Sidebar({ selected, onSelect, kindStatus = {} }) {
+function HealthDot({ health }) {
+  if (health === 'error') return (
+    <span
+      title="One or more resources in error state"
+      style={{ width: '0.45rem', height: '0.45rem', borderRadius: '50%', background: '#ef4444', display: 'inline-block', flexShrink: 0 }}
+    />
+  )
+  if (health === 'warning') return (
+    <span
+      title="One or more resources in warning state"
+      style={{ width: '0.45rem', height: '0.45rem', borderRadius: '50%', background: '#f59e0b', display: 'inline-block', flexShrink: 0 }}
+    />
+  )
+  return <span style={{ width: '0.45rem', height: '0.45rem', display: 'inline-block', flexShrink: 0 }} />
+}
+
+export default function Sidebar({ selected, onSelect, kindStatus = {}, kindHealth = {} }) {
   return (
     <nav className="d-flex flex-column gap-3">
       {resourceGroups.map((group) => (
@@ -35,6 +51,7 @@ export default function Sidebar({ selected, onSelect, kindStatus = {} }) {
                   onClick={() => onSelect(item.kind)}
                 >
                   <StatusDot status={kindStatus[item.kind]} />
+                  <HealthDot health={kindHealth[item.kind]} />
                   <span>{item.label}</span>
                 </button>
               </li>
