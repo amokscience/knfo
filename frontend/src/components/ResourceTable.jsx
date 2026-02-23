@@ -50,6 +50,7 @@ function statusSeverity(status) {
   if (ratio) {
     const ready = Number(ratio[1])
     const total = Number(ratio[2])
+    if (ready === 0 && total === 0) return 'zero'
     if (ready === 0 && total > 0) return 'error'
     if (ready < total) return 'warning'
     return null
@@ -108,10 +109,12 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
           {rows.map((row, idx) => {
             const sev = statusSeverity(row.status)
             const rowClass = sev === 'error' ? 'table-danger' : sev === 'warning' ? 'table-warning' : ''
+            const rowStyle = sev === 'zero' ? { backgroundColor: '#6b7280', color: '#f1f5f9' } : undefined
             return (
             <tr
               key={`${row.name}-${row.namespace}-${idx}`}
               className={rowClass}
+              style={rowStyle}
             >
               <td>
                 <code
