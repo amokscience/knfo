@@ -109,7 +109,7 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
           {rows.map((row, idx) => {
             const sev = statusSeverity(row.status)
             const rowClass = sev === 'error' ? 'table-danger' : sev === 'warning' ? 'table-warning' : ''
-            const zeroTd = sev === 'zero' ? { backgroundColor: '#6b7280', color: '#f1f5f9' } : undefined
+            const zeroTd = sev === 'zero' ? { backgroundColor: '#7e8085', color: '#f1f5f9' } : undefined
             return (
             <tr
               key={`${row.name}-${row.namespace}-${idx}`}
