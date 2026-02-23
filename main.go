@@ -567,12 +567,11 @@ func sanitizeError(err error) string {
 		return "Permission denied: the service account does not have access to this resource."
 	case strings.Contains(msg, "timed out"):
 		return "The kubectl command timed out. Check cluster connectivity."
-	case strings.Contains(msg, "not found"), strings.Contains(msg, "No such"):
-		return "Resource type not found in this cluster."
 	case strings.Contains(msg, "connection refused"), strings.Contains(msg, "no such host"):
 		return "Cannot reach the Kubernetes API server."
 	}
-	return "Failed to retrieve resources. Check server logs for details."
+	// Return the raw kubectl output so the user sees exactly what went wrong
+	return msg
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
