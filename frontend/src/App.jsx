@@ -32,6 +32,7 @@ export default function App() {
   const [cacheTime, setCacheTime] = useState(null)
   const [now, setNow] = useState(Date.now())
   const [command, setCommand] = useState('')
+  const [copiedListCmd, setCopiedListCmd] = useState(false)
   const [modalItem, setModalItem] = useState(null)
   // Per-kind fetch status for sidebar indicators: 'loading' | 'ok' | 'error'
   const [kindStatus, setKindStatus] = useState({})
@@ -68,6 +69,7 @@ export default function App() {
       setIsCached(false)
       setCacheTime(null)
       setCommand('')
+      setCopiedListCmd(false)
       fetchResources(kind)
     }
   }
@@ -209,12 +211,36 @@ export default function App() {
         </div>
 
           {command && !loading && (
-            <code
-              className="d-block text-secondary mb-2"
-              style={{ fontSize: '0.78rem', background: '#f8f9fa', borderRadius: '4px', padding: '3px 8px', userSelect: 'text' }}
-            >
-              {command}
-            </code>
+            <div className="d-inline-flex align-items-center gap-1 mb-2">
+              <code
+                style={{ fontSize: '0.78rem', background: '#f8f9fa', borderRadius: '4px', padding: '3px 8px', userSelect: 'text' }}
+              >
+                {command}
+              </code>
+              <button
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  color: copiedListCmd ? '#16a34a' : '#475569',
+                  padding: '2px 6px',
+                  lineHeight: 1.4,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                }}
+                title={copiedListCmd ? 'Copied!' : 'Copy command to clipboard'}
+                onClick={() => {
+                  navigator.clipboard.writeText(command).then(() => {
+                    setCopiedListCmd(true)
+                    setTimeout(() => setCopiedListCmd(false), 2000)
+                  })
+                }}
+              >
+                {copiedListCmd
+                  ? <i className="bi bi-check2" />
+                  : <i className="bi bi-clipboard" />}
+              </button>
+            </div>
           )}
           <ResourceTable
           rows={rows}
