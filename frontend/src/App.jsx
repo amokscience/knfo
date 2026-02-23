@@ -29,8 +29,9 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isCached, setIsCached] = useState(false)
-  const [cacheTime, setCacheTime] = useState(null)   // timestamp of current view's cache
-  const [now, setNow] = useState(Date.now())          // ticks every second while cached
+  const [cacheTime, setCacheTime] = useState(null)
+  const [now, setNow] = useState(Date.now())
+  const [command, setCommand] = useState('')
   const [modalItem, setModalItem] = useState(null)
   // Per-kind fetch status for sidebar indicators: 'loading' | 'ok' | 'error'
   const [kindStatus, setKindStatus] = useState({})
@@ -57,6 +58,7 @@ export default function App() {
       setRows(cached.rows)
       setNamespaced(cached.namespaced)
       setError(cached.error)
+      setCommand(cached.command ?? '')
       setIsCached(true)
       setCacheTime(cached.cachedAt ?? null)
     } else {
@@ -64,6 +66,8 @@ export default function App() {
       setNamespaced(false)
       setError('')
       setIsCached(false)
+      setCacheTime(null)
+      setCommand('')
       fetchResources(kind)
     }
   }
@@ -84,12 +88,14 @@ export default function App() {
       const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
-      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now() }
+      const newCommand = data.command ?? ''
+      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now(), command: newCommand }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
       // Only update UI if this kind is still selected
       if (kind === selectedKindRef.current) {
         setNamespaced(newNamespaced)
         setRows(newRows)
+        setCommand(newCommand)
       }
     } catch (err) {
       const msg = err.message || 'Failed to fetch resources'
@@ -116,12 +122,13 @@ export default function App() {
       const data = await response.json()
       const newRows = Array.isArray(data.rows) ? data.rows : []
       const newNamespaced = !!data.namespaced
-      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now() }
+      cache.current[kind] = { rows: newRows, namespaced: newNamespaced, error: '', cachedAt: Date.now(), command: data.command ?? '' }
       setKindStatus(prev => ({ ...prev, [kind]: 'ok' }))
       // If user navigated to this kind while it was being prefetched, show now
       if (kind === selectedKindRef.current) {
         setRows(newRows)
         setNamespaced(newNamespaced)
+        setCommand(data.command ?? '')
         setError('')
         setIsCached(false)
         setCacheTime(null)
@@ -201,7 +208,15 @@ export default function App() {
           )}
         </div>
 
-        <ResourceTable
+          {command && !loading && (
+            <code
+              className="d-block text-secondary mb-2"
+              style={{ fontSize: '0.78rem', background: '#f8f9fa', borderRadius: '4px', padding: '3px 8px', userSelect: 'text' }}
+            >
+              {command}
+            </code>
+          )}
+          <ResourceTable
           rows={rows}
           namespaced={namespaced}
           loading={loading}

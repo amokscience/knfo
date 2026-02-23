@@ -17,6 +17,7 @@ import (
 type resourceResponse struct {
 	Namespaced bool          `json:"namespaced"`
 	Rows       []resourceRow `json:"rows"`
+	Command    string        `json:"command"`
 }
 
 type resourceRow struct {
@@ -364,8 +365,13 @@ func resourcesHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("OK kind=%s remote=%s rows=%d", kind, r.RemoteAddr, len(rows))
 
+	cmdArgs := []string{"kubectl", "get", def.kubectlName}
+	if def.namespaced {
+		cmdArgs = append(cmdArgs, "-A")
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resourceResponse{Namespaced: def.namespaced, Rows: rows})
+	_ = json.NewEncoder(w).Encode(resourceResponse{Namespaced: def.namespaced, Rows: rows, Command: strings.Join(cmdArgs, " ")})
 }
 
 func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
