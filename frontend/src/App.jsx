@@ -189,7 +189,7 @@ export default function App() {
         className="d-flex flex-column flex-shrink-0 p-3 border-end overflow-auto"
         style={{ width: '220px', background: '#0f172a' }}
       >
-        <span className="fw-bold text-white mb-3 ms-1">kinfo</span>
+        <span className="fw-bold text-white mb-3 ms-1">test kinfo</span>
         <Sidebar selected={selectedKind} onSelect={handleSelect} kindStatus={kindStatus} kindHealth={kindHealth} />
       </div>
 
