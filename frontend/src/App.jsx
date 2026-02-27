@@ -267,7 +267,7 @@ export default function App() {
         </div>
 
           {command && !loading && (
-            <div className="d-inline-flex align-items-center gap-1 mb-2">
+            <div className="d-flex align-items-center gap-1 mb-2 w-100">
               <code
                 style={{ fontSize: '0.78rem', background: '#f8f9fa', borderRadius: '4px', padding: '3px 8px', userSelect: 'text' }}
               >
@@ -297,7 +297,7 @@ export default function App() {
                   : <i className="bi bi-clipboard" />}
               </button>
               {selectedKind === 'top-pods' && rows && sumMemory(rows) && (
-                <span className="text-secondary" style={{ fontSize: '0.78rem', marginLeft: '6px' }}>
+                <span className="ms-auto fw-semibold" style={{ fontSize: '1rem' }}>
                   {sumMemory(rows)}
                 </span>
               )}
