@@ -33,6 +33,30 @@ function fmtTime(ts) {
   return new Date(ts).toLocaleTimeString()
 }
 
+// Parse a kubectl memory string (e.g. "512Mi", "1Gi", "2048Ki") → MiB (float)
+function parseMemoryMi(s) {
+  if (!s) return 0
+  const m = s.match(/^([0-9.]+)(Ki|Mi|Gi|Ti|Pi|Ki|k|M|G|T)?$/i)
+  if (!m) return 0
+  const n = parseFloat(m[1])
+  switch ((m[2] || '').toLowerCase()) {
+    case 'ki': return n / 1024
+    case 'mi': return n
+    case 'gi': return n * 1024
+    case 'ti': return n * 1024 * 1024
+    case 'pi': return n * 1024 * 1024 * 1024
+    default:   return n / (1024 * 1024) // bare bytes
+  }
+}
+
+function sumMemory(rows) {
+  if (!rows || rows.length === 0) return null
+  const totalMi = rows.reduce((acc, r) => acc + parseMemoryMi(r.memory), 0)
+  if (totalMi === 0) return null
+  if (totalMi >= 1024) return `${(totalMi / 1024).toFixed(1)} GiB total memory`
+  return `${Math.round(totalMi)} MiB total memory`
+}
+
 export default function App() {
   const [selectedKind, setSelectedKind] = useState(firstKind)
   const [rows, setRows] = useState(null)       // null = not yet fetched
@@ -272,6 +296,11 @@ export default function App() {
                   ? <i className="bi bi-check2" />
                   : <i className="bi bi-clipboard" />}
               </button>
+              {selectedKind === 'top-pods' && rows && sumMemory(rows) && (
+                <span className="text-secondary" style={{ fontSize: '0.78rem', marginLeft: '6px' }}>
+                  {sumMemory(rows)}
+                </span>
+              )}
             </div>
           )}
           <ResourceTable
