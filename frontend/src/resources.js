@@ -3,6 +3,13 @@
 
 export const resourceGroups = [
   {
+    label: 'Top',
+    items: [
+      { label: 'Top Nodes', kind: 'top-nodes' },
+      { label: 'Top Pods',  kind: 'top-pods' },
+    ],
+  },
+  {
     label: 'Core',
     items: [
       { label: 'Namespaces',               kind: 'namespaces' },

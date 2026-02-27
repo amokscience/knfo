@@ -29,7 +29,7 @@ function nsColor(name) {
 
 import { statusSeverity } from '../utils/statusSeverity'
 
-export default function ResourceTable({ rows, namespaced, loading, error, onRowClick }) {
+export default function ResourceTable({ rows, namespaced, loading, error, onRowClick, topMode = false }) {
   if (loading) {
     return (
       <div className="d-flex align-items-center gap-2 text-secondary py-5 justify-content-center">
@@ -70,8 +70,17 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
           <tr>
             <th>Name</th>
             {namespaced && <th>Namespace</th>}
-            <th>Status</th>
-            <th>Age</th>
+            {topMode ? (
+              <>
+                <th>CPU</th>
+                <th>Memory</th>
+              </>
+            ) : (
+              <>
+                <th>Status</th>
+                <th>Age</th>
+              </>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -102,12 +111,21 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
                   </span>
                 </td>
               )}
-              <td style={zeroTd}>
-                {sev === 'error' && <i className="bi bi-exclamation-circle-fill text-danger me-1" />}
-                {sev === 'warning' && <i className="bi bi-exclamation-triangle-fill text-warning me-1" />}
-                {row.status || <span className="text-secondary">—</span>}
-              </td>
-              <td className="text-nowrap" style={zeroTd}>{row.age}</td>
+              {topMode ? (
+                <>
+                  <td className="text-nowrap"><code>{row.cpu}</code></td>
+                  <td className="text-nowrap"><code>{row.memory}</code></td>
+                </>
+              ) : (
+                <>
+                  <td style={zeroTd}>
+                    {sev === 'error' && <i className="bi bi-exclamation-circle-fill text-danger me-1" />}
+                    {sev === 'warning' && <i className="bi bi-exclamation-triangle-fill text-warning me-1" />}
+                    {row.status || <span className="text-secondary">—</span>}
+                  </td>
+                  <td className="text-nowrap" style={zeroTd}>{row.age}</td>
+                </>
+              )}
             </tr>
             )
           })}

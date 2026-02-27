@@ -27,6 +27,19 @@ type resourceRow struct {
 	Age       string `json:"age"`
 }
 
+type topResponse struct {
+	Namespaced bool     `json:"namespaced"`
+	Rows       []topRow `json:"rows"`
+	Command    string   `json:"command"`
+}
+
+type topRow struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+	CPU       string `json:"cpu"`
+	Memory    string `json:"memory"`
+}
+
 // ── Resource registry ─────────────────────────────────────────────────────────
 
 type resourceDef struct {
@@ -323,6 +336,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./web")))
 	mux.HandleFunc("/api/resources", resourcesHandler)
+	mux.HandleFunc("/api/top", topHandler)
 	mux.HandleFunc("/api/detail", detailHandler)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -504,6 +518,69 @@ var detailRegistry = map[string]detailDef{
 	"probes":          {mode: detailYAML, kubectlName: "probe", namespaced: true},
 	"alertmanagers":   {mode: detailDescribe, kubectlName: "alertmanager", namespaced: true},
 	"prometheuses":    {mode: detailDescribe, kubectlName: "prometheus", namespaced: true},
+}
+
+func topHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
+
+	var args []string
+	var namespaced bool
+	switch kind {
+	case "top-nodes":
+		args = []string{"top", "nodes"}
+	case "top-pods":
+		args = []string{"top", "pods", "-A"}
+		namespaced = true
+	default:
+		http.Error(w, fmt.Sprintf("unsupported top kind: %q", kind), http.StatusBadRequest)
+		return
+	}
+
+	cmdStr := "kubectl " + strings.Join(args, " ")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		raw := strings.TrimSpace(string(out))
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			raw = "timed out"
+		}
+		log.Printf("top error: kind=%s: %v output=%s", kind, err, raw)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(fmt.Errorf("%s", raw)), "command": cmdStr})
+		return
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	rows := make([]topRow, 0, len(lines))
+	for _, line := range lines[1:] { // skip header line
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		var row topRow
+		if namespaced && len(fields) >= 4 {
+			row = topRow{Namespace: fields[0], Name: fields[1], CPU: fields[2], Memory: fields[3]}
+		} else if !namespaced && len(fields) >= 3 {
+			row = topRow{Name: fields[0], CPU: fields[1], Memory: fields[2]}
+		} else {
+			continue
+		}
+		rows = append(rows, row)
+	}
+
+	log.Printf("top OK kind=%s remote=%s rows=%d", kind, r.RemoteAddr, len(rows))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(topResponse{Namespaced: namespaced, Rows: rows, Command: cmdStr})
 }
 
 func detailHandler(w http.ResponseWriter, r *http.Request) {

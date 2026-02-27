@@ -10,6 +10,15 @@ const firstKind = resourceGroups[0].items[0].kind
 // All kinds in sidebar display order
 const allKinds = resourceGroups.flatMap(g => g.items.map(i => i.kind))
 
+// Kinds that are served by /api/top instead of /api/resources
+const TOP_KINDS = new Set(['top-nodes', 'top-pods'])
+
+function apiUrl(kind) {
+  return TOP_KINDS.has(kind)
+    ? `/api/top?kind=${encodeURIComponent(kind)}`
+    : `/api/resources?kind=${encodeURIComponent(kind)}`
+}
+
 function timeAgo(ts, now = Date.now()) {
   if (!ts) return ''
   const secs = Math.floor((now - ts) / 1000)
@@ -84,7 +93,7 @@ export default function App() {
     setIsCached(false)
     setKindStatus(prev => ({ ...prev, [kind]: 'loading' }))
     try {
-      const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
+      const response = await fetch(apiUrl(kind))
       const text = await response.text()
       let data
       try { data = JSON.parse(text) } catch (_) { data = {} }
@@ -128,7 +137,7 @@ export default function App() {
   const prefetchKind = useCallback(async (kind) => {
     setKindStatus(prev => ({ ...prev, [kind]: 'loading' }))
     try {
-      const response = await fetch(`/api/resources?kind=${encodeURIComponent(kind)}`)
+      const response = await fetch(apiUrl(kind))
       if (!response.ok) {
         setKindStatus(prev => ({ ...prev, [kind]: 'error' }))
         return
@@ -270,7 +279,8 @@ export default function App() {
           namespaced={namespaced}
           loading={loading}
           error={error}
-          onRowClick={setModalItem}
+          topMode={TOP_KINDS.has(selectedKind)}
+          onRowClick={TOP_KINDS.has(selectedKind) ? undefined : setModalItem}
         />
 
         <DetailModal
