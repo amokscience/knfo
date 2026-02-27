@@ -399,14 +399,21 @@ func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 	}
 
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	out, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 	if err != nil {
-		raw := strings.TrimSpace(string(out))
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			log.Printf("kubectl timeout: args=%v", args)
 			return nil, fmt.Errorf("timed out")
 		}
-		log.Printf("kubectl error: args=%v output=%s", args, raw)
+		var exitErr *exec.ExitError
+		raw := ""
+		if errors.As(err, &exitErr) {
+			raw = strings.TrimSpace(string(exitErr.Stderr))
+		}
+		if raw == "" {
+			raw = err.Error()
+		}
+		log.Printf("kubectl error: args=%v stderr=%s", args, raw)
 		return nil, fmt.Errorf("%s", raw)
 	}
 
@@ -547,13 +554,21 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	out, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 	if err != nil {
-		raw := strings.TrimSpace(string(out))
+		raw := ""
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			raw = "timed out"
+		} else {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				raw = strings.TrimSpace(string(exitErr.Stderr))
+			}
+			if raw == "" {
+				raw = err.Error()
+			}
 		}
-		log.Printf("top error: kind=%s: %v output=%s", kind, err, raw)
+		log.Printf("top error: kind=%s: %v stderr=%s", kind, err, raw)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(fmt.Errorf("%s", raw)), "command": cmdStr})
@@ -628,14 +643,21 @@ func detailHandler(w http.ResponseWriter, r *http.Request) {
 
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
 	cmdStr := "kubectl " + strings.Join(args, " ")
-	out, err := cmd.CombinedOutput()
-	raw := strings.TrimSpace(string(out))
+	out, err := cmd.Output()
 	if err != nil {
+		var raw string
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			log.Printf("detail timeout: kind=%s name=%s", kind, name)
 			raw = "kubectl command timed out"
 		} else {
-			log.Printf("detail error: kind=%s name=%s: %v output=%s", kind, name, err, raw)
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				raw = strings.TrimSpace(string(exitErr.Stderr))
+			}
+			if raw == "" {
+				raw = err.Error()
+			}
+			log.Printf("detail error: kind=%s name=%s: %v stderr=%s", kind, name, err, raw)
 			raw = sanitizeError(fmt.Errorf("%s", raw))
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -646,7 +668,7 @@ func detailHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("detail OK kind=%s name=%s remote=%s", kind, name, r.RemoteAddr)
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"output": raw, "command": cmdStr})
+	_ = json.NewEncoder(w).Encode(map[string]string{"output": strings.TrimSpace(string(out)), "command": cmdStr})
 }
 
 func sanitizeError(err error) string {
