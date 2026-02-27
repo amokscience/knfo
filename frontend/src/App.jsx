@@ -12,11 +12,13 @@ const allKinds = resourceGroups.flatMap(g => g.items.map(i => i.kind))
 
 // Kinds that are served by /api/top instead of /api/resources
 const TOP_KINDS = new Set(['top-nodes', 'top-pods'])
+// Kinds served by /api/sync-history
+const SYNC_HISTORY_KINDS = new Set(['app-sync-history'])
 
 function apiUrl(kind) {
-  return TOP_KINDS.has(kind)
-    ? `/api/top?kind=${encodeURIComponent(kind)}`
-    : `/api/resources?kind=${encodeURIComponent(kind)}`
+  if (TOP_KINDS.has(kind))          return `/api/top?kind=${encodeURIComponent(kind)}`
+  if (SYNC_HISTORY_KINDS.has(kind)) return `/api/sync-history`
+  return `/api/resources?kind=${encodeURIComponent(kind)}`
 }
 
 function timeAgo(ts, now = Date.now()) {
@@ -309,7 +311,8 @@ export default function App() {
           loading={loading}
           error={error}
           topMode={TOP_KINDS.has(selectedKind)}
-          onRowClick={TOP_KINDS.has(selectedKind) ? undefined : setModalItem}
+          syncHistoryMode={SYNC_HISTORY_KINDS.has(selectedKind)}
+          onRowClick={TOP_KINDS.has(selectedKind) || SYNC_HISTORY_KINDS.has(selectedKind) ? undefined : setModalItem}
         />
 
         <DetailModal

@@ -78,9 +78,10 @@ export const resourceGroups = [
   {
     label: 'Argo CD',
     items: [
-      { label: 'Applications',    kind: 'applications' },
-      { label: 'App Projects',    kind: 'appprojects' },
-      { label: 'Application Sets', kind: 'applicationsets' },
+      { label: 'Applications',      kind: 'applications' },
+      { label: 'App Sync History',  kind: 'app-sync-history' },
+      { label: 'App Projects',      kind: 'appprojects' },
+      { label: 'Application Sets',  kind: 'applicationsets' },
     ],
   },
   {

@@ -40,6 +40,21 @@ type topRow struct {
 	Memory    string `json:"memory"`
 }
 
+type syncHistoryResponse struct {
+	Namespaced bool              `json:"namespaced"`
+	Rows       []syncHistoryRow  `json:"rows"`
+	Command    string            `json:"command"`
+}
+
+type syncHistoryRow struct {
+	Name      string `json:"name"`       // app name
+	Namespace string `json:"namespace,omitempty"`
+	Revision  string `json:"revision"`
+	Duration  string `json:"duration"`
+	Age       string `json:"age"`        // deployed-at, human-readable
+	DeployedTs int64 `json:"deployedTs"` // unix ms, for sorting
+}
+
 // ── Resource registry ─────────────────────────────────────────────────────────
 
 type resourceDef struct {
@@ -337,6 +352,7 @@ func main() {
 	mux.Handle("/", http.FileServer(http.Dir("./web")))
 	mux.HandleFunc("/api/resources", resourcesHandler)
 	mux.HandleFunc("/api/top", topHandler)
+	mux.HandleFunc("/api/sync-history", syncHistoryHandler)
 	mux.HandleFunc("/api/detail", detailHandler)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -525,6 +541,115 @@ var detailRegistry = map[string]detailDef{
 	"probes":          {mode: detailYAML, kubectlName: "probe", namespaced: true},
 	"alertmanagers":   {mode: detailDescribe, kubectlName: "alertmanager", namespaced: true},
 	"prometheuses":    {mode: detailDescribe, kubectlName: "prometheus", namespaced: true},
+}
+
+func syncHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	args := []string{"get", "applications", "-A", "-o", "json"}
+	cmdStr := "kubectl " + strings.Join(args, " ")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			log.Printf("sync-history timeout")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "timed out", "command": cmdStr})
+			return
+		}
+		var exitErr *exec.ExitError
+		raw := ""
+		if errors.As(err, &exitErr) {
+			raw = strings.TrimSpace(string(exitErr.Stderr))
+		}
+		if raw == "" {
+			raw = err.Error()
+		}
+		log.Printf("sync-history error: %v stderr=%s", err, raw)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(fmt.Errorf("%s", raw)), "command": cmdStr})
+		return
+	}
+
+	var list struct {
+		Items []map[string]interface{} `json:"items"`
+	}
+	if err := json.Unmarshal(out, &list); err != nil {
+		log.Printf("sync-history parse error: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to parse application list", "command": cmdStr})
+		return
+	}
+
+	var rows []syncHistoryRow
+	for _, item := range list.Items {
+		meta, _ := item["metadata"].(map[string]interface{})
+		if meta == nil {
+			continue
+		}
+		appName := gStrD(meta, "name")
+		appNS := gStrD(meta, "namespace")
+
+		status, _ := item["status"].(map[string]interface{})
+		if status == nil {
+			continue
+		}
+		history := gSlice(status, "history")
+		for _, h := range history {
+			hm, _ := h.(map[string]interface{})
+			if hm == nil {
+				continue
+			}
+			rev := gStrD(hm, "revision")
+			if len(rev) > 7 {
+				rev = rev[:7]
+			}
+			deployedAt, _ := time.Parse(time.RFC3339, gStrD(hm, "deployedAt"))
+			startedAt, _ := time.Parse(time.RFC3339, gStrD(hm, "deployStartedAt"))
+
+			duration := "—"
+			if !deployedAt.IsZero() && !startedAt.IsZero() && deployedAt.After(startedAt) {
+				d := deployedAt.Sub(startedAt).Round(time.Second)
+				if d < time.Minute {
+					duration = fmt.Sprintf("%ds", int(d.Seconds()))
+				} else {
+					duration = fmt.Sprintf("%dm%ds", int(d.Minutes()), int(d.Seconds())%60)
+				}
+			}
+
+			rows = append(rows, syncHistoryRow{
+				Name:       appName,
+				Namespace:  appNS,
+				Revision:   rev,
+				Duration:   duration,
+				Age:        humanizeAge(deployedAt),
+				DeployedTs: deployedAt.UnixMilli(),
+			})
+		}
+	}
+
+	// Sort newest first
+	for i := 0; i < len(rows)-1; i++ {
+		for j := i + 1; j < len(rows); j++ {
+			if rows[j].DeployedTs > rows[i].DeployedTs {
+				rows[i], rows[j] = rows[j], rows[i]
+			}
+		}
+	}
+
+	log.Printf("sync-history OK remote=%s rows=%d", r.RemoteAddr, len(rows))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(syncHistoryResponse{Namespaced: true, Rows: rows, Command: cmdStr})
 }
 
 func topHandler(w http.ResponseWriter, r *http.Request) {

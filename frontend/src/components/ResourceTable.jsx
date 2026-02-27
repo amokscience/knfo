@@ -29,7 +29,7 @@ function nsColor(name) {
 
 import { statusSeverity } from '../utils/statusSeverity'
 
-export default function ResourceTable({ rows, namespaced, loading, error, onRowClick, topMode = false }) {
+export default function ResourceTable({ rows, namespaced, loading, error, onRowClick, topMode = false, syncHistoryMode = false }) {
   if (loading) {
     return (
       <div className="d-flex align-items-center gap-2 text-secondary py-5 justify-content-center">
@@ -75,6 +75,12 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
                 <th>CPU</th>
                 <th>Memory</th>
               </>
+            ) : syncHistoryMode ? (
+              <>
+                <th>Revision</th>
+                <th>Duration</th>
+                <th>Deployed</th>
+              </>
             ) : (
               <>
                 <th>Status</th>
@@ -115,6 +121,12 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
                 <>
                   <td className="text-nowrap"><code>{row.cpu}</code></td>
                   <td className="text-nowrap"><code>{row.memory}</code></td>
+                </>
+              ) : syncHistoryMode ? (
+                <>
+                  <td className="text-nowrap"><code>{row.revision}</code></td>
+                  <td className="text-nowrap text-secondary">{row.duration}</td>
+                  <td className="text-nowrap">{row.age}</td>
                 </>
               ) : (
                 <>
