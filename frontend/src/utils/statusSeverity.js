@@ -12,9 +12,7 @@ const WARN_PATTERNS = [
   /\bstarting\b/i, /\bnotinstalled\b/i,
 ]
 const SUCCESS_PATTERNS = [
-  /\bhealthy\b/i, /\bsynced\b/i, /\bsuccess(ful)?\b/i,
-  /\brunning\b/i, /\bscheduled\b/i, /\bpulled\b/i,
-  /\bcreated\b/i, /\bstarted\b/i, /\bcompleted\b/i,
+  /\bhealthy\b/i, /\bsynced\b/i, /\bsuccess(ful(ly)?)?\b/i, /\bcompleted\b/i,
 ]
 
 export function statusSeverity(status) {
