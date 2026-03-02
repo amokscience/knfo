@@ -27,8 +27,8 @@ export function statusSeverity(status) {
     return null
   }
   for (const re of ERROR_PATTERNS) if (re.test(status)) return 'error'
-  for (const re of WARN_PATTERNS) if (re.test(status)) return 'warning'
   for (const re of SUCCESS_PATTERNS) if (re.test(status)) return 'success'
+  for (const re of WARN_PATTERNS) if (re.test(status)) return 'warning'
   return null
 }
 
