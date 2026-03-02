@@ -26,6 +26,16 @@ export function statusSeverity(status) {
     if (ready < total) return 'warning'
     return null
   }
+  // For transition strings like "Progressing -> Healthy" or "OutOfSync -> Synced",
+  // classify by the destination state only.
+  const arrowMatch = status.match(/->\s*(\S+)\s*$/)
+  if (arrowMatch) {
+    const dest = arrowMatch[1]
+    for (const re of ERROR_PATTERNS) if (re.test(dest)) return 'error'
+    for (const re of SUCCESS_PATTERNS) if (re.test(dest)) return 'success'
+    for (const re of WARN_PATTERNS) if (re.test(dest)) return 'warning'
+    return null
+  }
   for (const re of ERROR_PATTERNS) if (re.test(status)) return 'error'
   for (const re of SUCCESS_PATTERNS) if (re.test(status)) return 'success'
   for (const re of WARN_PATTERNS) if (re.test(status)) return 'warning'
