@@ -92,7 +92,7 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
         <tbody>
           {rows.map((row, idx) => {
             const sev = statusSeverity(row.status)
-            const rowClass = sev === 'error' ? 'table-danger' : sev === 'warning' ? 'table-warning' : ''
+            const rowClass = sev === 'error' ? 'table-danger' : sev === 'warning' ? 'table-warning' : sev === 'success' ? 'table-success' : ''
             const zeroTd = sev === 'zero' ? { backgroundColor: '#7e8085', color: '#f1f5f9' } : undefined
             return (
             <tr
@@ -133,6 +133,7 @@ export default function ResourceTable({ rows, namespaced, loading, error, onRowC
                   <td style={zeroTd}>
                     {sev === 'error' && <i className="bi bi-exclamation-circle-fill text-danger me-1" />}
                     {sev === 'warning' && <i className="bi bi-exclamation-triangle-fill text-warning me-1" />}
+                    {sev === 'success' && <i className="bi bi-check-circle-fill text-success me-1" />}
                     {row.status || <span className="text-secondary">—</span>}
                   </td>
                   <td className="text-nowrap" style={zeroTd}>{row.age}</td>
