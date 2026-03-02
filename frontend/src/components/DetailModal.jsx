@@ -45,6 +45,7 @@ export default function DetailModal({ item, kind, onClose }) {
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null) // null | 'ok' | 'error'
   const [syncError, setSyncError] = useState('')
+  const [syncCmd, setSyncCmd] = useState('')
   const backdropRef = useRef()
 
   const modeLabel = MODE_LABEL[kind] ?? 'Describe'
@@ -83,6 +84,7 @@ export default function DetailModal({ item, kind, onClose }) {
     setSyncing(false)
     setSyncResult(null)
     setSyncError('')
+    setSyncCmd('')
   }, [item])
 
   const handleSync = () => {
@@ -90,11 +92,13 @@ export default function DetailModal({ item, kind, onClose }) {
     setSyncing(true)
     setSyncResult(null)
     setSyncError('')
+    setSyncCmd('')
     const params = new URLSearchParams({ name })
     if (namespace) params.set('namespace', namespace)
     fetch(`/api/argo-sync?${params}`, { method: 'POST' })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
+        if (data.command) setSyncCmd(data.command)
         if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
         setSyncResult('ok')
       })
@@ -237,7 +241,7 @@ export default function DetailModal({ item, kind, onClose }) {
                 style={{ fontSize: '0.78rem', minWidth: '80px' }}
                 onClick={handleSync}
                 disabled={syncing}
-                title={syncResult === 'error' ? syncError : 'Trigger an Argo CD sync for this application'}
+                title={syncResult === 'error' ? 'See error below' : 'Trigger an Argo CD sync for this application'}
               >
                 {syncing
                   ? <><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />Syncing…</>
@@ -261,6 +265,22 @@ export default function DetailModal({ item, kind, onClose }) {
               <code style={{ fontSize: '0.78rem', background: '#0f172a', borderRadius: '4px', padding: '3px 8px', color: '#94a3b8', userSelect: 'text' }}>
                 {detailCmd}
               </code>
+            </div>
+          )}
+          {syncCmd && !loading && (
+            <div className="d-inline-flex align-items-center gap-1 mb-2">
+              <code style={{ fontSize: '0.78rem', background: '#0f172a', borderRadius: '4px', padding: '3px 8px', color: '#94a3b8', userSelect: 'text' }}>
+                {syncCmd}
+              </code>
+            </div>
+          )}
+          {syncResult === 'error' && syncError && (
+            <div className="alert alert-danger d-flex align-items-start gap-2 mb-2" role="alert">
+              <i className="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" />
+              <div>
+                <strong>Sync failed</strong><br />
+                <span style={{ fontFamily: 'monospace', fontSize: '0.82rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{syncError}</span>
+              </div>
             </div>
           )}
           {loading && (

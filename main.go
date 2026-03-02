@@ -852,8 +852,10 @@ func argoSyncHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Patch the Application resource with a sync operation — Argo CD picks it up immediately.
-	patchJSON := `{"operation":{"initiatedBy":{"username":"knfo"},"sync":{"syncStrategy":{"hook":{}}}}}`
-	args := []string{"patch", "app", name, "--type=merge", "-p", patchJSON}
+	// Use the full CRD name so it works regardless of which kubectl shortname aliases are installed.
+	// An empty sync object causes Argo CD to apply defaults from the Application spec.
+	patchJSON := `{"operation":{"initiatedBy":{"username":"knfo"},"sync":{}}}`
+	args := []string{"patch", "applications.argoproj.io", name, "--type=merge", "-p", patchJSON}
 	if ns != "" {
 		args = append(args, "-n", ns)
 	}
@@ -880,7 +882,8 @@ func argoSyncHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("argo-sync error: name=%s ns=%s: %v", name, ns, raw)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(fmt.Errorf("%s", raw)), "command": cmdStr})
+		// Don't sanitize — pass the raw kubectl message so the UI can show exactly what failed.
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": raw, "command": cmdStr})
 		return
 	}
 
