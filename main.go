@@ -64,7 +64,9 @@ type resourceDef struct {
 	statusFn    func(item map[string]interface{}) string
 	// ageFn overrides the default creationTimestamp for the Age column.
 	ageFn func(item map[string]interface{}) time.Time
-	// sortDescAge sorts rows newest-first using ageFn (or creationTimestamp).
+	// sortKeyFn returns a high-precision sort key; when set it is used instead of ageFn for ordering.
+	sortKeyFn func(item map[string]interface{}) time.Time
+	// sortDescAge sorts rows newest-first using sortKeyFn (or ageFn, or creationTimestamp).
 	sortDescAge bool
 }
 
@@ -128,7 +130,7 @@ var registry = map[string]resourceDef{
 			}
 			return reason
 		},
-		// Use lastTimestamp (most-recent occurrence) for age; fall back to eventTime then creationTimestamp.
+		// Use lastTimestamp (most-recent occurrence) for the Age column; fall back to eventTime then creationTimestamp.
 		ageFn: func(i map[string]interface{}) time.Time {
 			for _, field := range []string{"lastTimestamp", "eventTime"} {
 				if ts := gStr(i, field); ts != "" {
@@ -139,6 +141,31 @@ var registry = map[string]resourceDef{
 			}
 			meta, _ := i["metadata"].(map[string]interface{})
 			t, _ := time.Parse(time.RFC3339, gStrD(meta, "creationTimestamp"))
+			return t
+		},
+		// sortKeyFn uses lastTimestamp for primary order and eventTime (nanosecond precision)
+		// as a tiebreaker, so events within the same second are also ordered correctly.
+		sortKeyFn: func(i map[string]interface{}) time.Time {
+			// eventTime is RFC3339Nano — use it as the highest-precision key.
+			if ts := gStr(i, "eventTime"); ts != "" {
+				if t, err := time.Parse(time.RFC3339Nano, ts); err == nil && !t.IsZero() {
+					// Prefer lastTimestamp second if it exists and is strictly later,
+					// otherwise fall back to the nanosecond eventTime.
+					if lts := gStr(i, "lastTimestamp"); lts != "" {
+						if lt, err2 := time.Parse(time.RFC3339, lts); err2 == nil && lt.After(t) {
+							return lt
+						}
+					}
+					return t
+				}
+			}
+			if ts := gStr(i, "lastTimestamp"); ts != "" {
+				if t, err := time.Parse(time.RFC3339, ts); err == nil && !t.IsZero() {
+					return t
+				}
+			}
+			meta, _ := i["metadata"].(map[string]interface{})
+			t, _ := time.Parse(time.RFC3339Nano, gStrD(meta, "creationTimestamp"))
 			return t
 		},
 		sortDescAge: true,
@@ -476,7 +503,10 @@ func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 	if def.sortDescAge {
 		sort.SliceStable(list.Items, func(a, b int) bool {
 			var ta, tb time.Time
-			if def.ageFn != nil {
+			if def.sortKeyFn != nil {
+				ta = def.sortKeyFn(list.Items[a])
+				tb = def.sortKeyFn(list.Items[b])
+			} else if def.ageFn != nil {
 				ta = def.ageFn(list.Items[a])
 				tb = def.ageFn(list.Items[b])
 			} else {
