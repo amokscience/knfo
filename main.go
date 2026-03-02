@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 )
@@ -41,18 +42,18 @@ type topRow struct {
 }
 
 type syncHistoryResponse struct {
-	Namespaced bool              `json:"namespaced"`
-	Rows       []syncHistoryRow  `json:"rows"`
-	Command    string            `json:"command"`
+	Namespaced bool             `json:"namespaced"`
+	Rows       []syncHistoryRow `json:"rows"`
+	Command    string           `json:"command"`
 }
 
 type syncHistoryRow struct {
-	Name      string `json:"name"`       // app name
-	Namespace string `json:"namespace,omitempty"`
-	Revision  string `json:"revision"`
-	Duration  string `json:"duration"`
-	Age       string `json:"age"`        // deployed-at, human-readable
-	DeployedTs int64 `json:"deployedTs"` // unix ms, for sorting
+	Name       string `json:"name"` // app name
+	Namespace  string `json:"namespace,omitempty"`
+	Revision   string `json:"revision"`
+	Duration   string `json:"duration"`
+	Age        string `json:"age"`        // deployed-at, human-readable
+	DeployedTs int64  `json:"deployedTs"` // unix ms, for sorting
 }
 
 // ── Resource registry ─────────────────────────────────────────────────────────
@@ -61,6 +62,10 @@ type resourceDef struct {
 	kubectlName string
 	namespaced  bool
 	statusFn    func(item map[string]interface{}) string
+	// ageFn overrides the default creationTimestamp for the Age column.
+	ageFn func(item map[string]interface{}) time.Time
+	// sortDescAge sorts rows newest-first using ageFn (or creationTimestamp).
+	sortDescAge bool
 }
 
 var registry = map[string]resourceDef{
@@ -123,6 +128,20 @@ var registry = map[string]resourceDef{
 			}
 			return reason
 		},
+		// Use lastTimestamp (most-recent occurrence) for age; fall back to eventTime then creationTimestamp.
+		ageFn: func(i map[string]interface{}) time.Time {
+			for _, field := range []string{"lastTimestamp", "eventTime"} {
+				if ts := gStr(i, field); ts != "" {
+					if t, err := time.Parse(time.RFC3339, ts); err == nil && !t.IsZero() {
+						return t
+					}
+				}
+			}
+			meta, _ := i["metadata"].(map[string]interface{})
+			t, _ := time.Parse(time.RFC3339, gStrD(meta, "creationTimestamp"))
+			return t
+		},
+		sortDescAge: true,
 	},
 	"serviceaccounts": {
 		kubectlName: "serviceaccounts",
@@ -452,13 +471,35 @@ func runKubectl(ctx context.Context, def resourceDef) ([]resourceRow, error) {
 		return nil, fmt.Errorf("failed to parse kubectl output: %s", strings.TrimSpace(string(out)))
 	}
 
+	// Sort items newest-first if requested (e.g. events).
+	if def.sortDescAge {
+		sort.SliceStable(list.Items, func(a, b int) bool {
+			var ta, tb time.Time
+			if def.ageFn != nil {
+				ta = def.ageFn(list.Items[a])
+				tb = def.ageFn(list.Items[b])
+			} else {
+				metaA, _ := list.Items[a]["metadata"].(map[string]interface{})
+				metaB, _ := list.Items[b]["metadata"].(map[string]interface{})
+				ta, _ = time.Parse(time.RFC3339, gStrD(metaA, "creationTimestamp"))
+				tb, _ = time.Parse(time.RFC3339, gStrD(metaB, "creationTimestamp"))
+			}
+			return ta.After(tb)
+		})
+	}
+
 	rows := make([]resourceRow, 0, len(list.Items))
 	for _, item := range list.Items {
 		meta, _ := item["metadata"].(map[string]interface{})
 		if meta == nil {
 			continue
 		}
-		created, _ := time.Parse(time.RFC3339, gStrD(meta, "creationTimestamp"))
+		var created time.Time
+		if def.ageFn != nil {
+			created = def.ageFn(item)
+		} else {
+			created, _ = time.Parse(time.RFC3339, gStrD(meta, "creationTimestamp"))
+		}
 		rows = append(rows, resourceRow{
 			Name:      gStrD(meta, "name"),
 			Namespace: gStrD(meta, "namespace"),
