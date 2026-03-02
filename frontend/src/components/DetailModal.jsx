@@ -42,6 +42,9 @@ export default function DetailModal({ item, kind, onClose }) {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedCmd, setCopiedCmd] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null) // null | 'ok' | 'error'
+  const [syncError, setSyncError] = useState('')
   const backdropRef = useRef()
 
   const modeLabel = MODE_LABEL[kind] ?? 'Describe'
@@ -72,8 +75,35 @@ export default function DetailModal({ item, kind, onClose }) {
       .finally(() => setLoading(false))
   }, [item, kind, name, namespace])
 
-  // Reset copied state when item changes
-  useEffect(() => { setCopied(false); setCopiedCmd(false); setDetailCmd('') }, [item])
+  // Reset copied + sync state when item changes
+  useEffect(() => {
+    setCopied(false)
+    setCopiedCmd(false)
+    setDetailCmd('')
+    setSyncing(false)
+    setSyncResult(null)
+    setSyncError('')
+  }, [item])
+
+  const handleSync = () => {
+    if (!name) return
+    setSyncing(true)
+    setSyncResult(null)
+    setSyncError('')
+    const params = new URLSearchParams({ name })
+    if (namespace) params.set('namespace', namespace)
+    fetch(`/api/argo-sync?${params}`, { method: 'POST' })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
+        setSyncResult('ok')
+      })
+      .catch((err) => {
+        setSyncResult('error')
+        setSyncError(err.message || 'Sync failed')
+      })
+      .finally(() => setSyncing(false))
+  }
 
   const handleCopy = () => {
     if (!output) return
@@ -197,6 +227,25 @@ export default function DetailModal({ item, kind, onClose }) {
             </div>
           </div>
           <div className="d-flex align-items-center gap-2 ms-3" style={{ flexShrink: 0 }}>
+            {kind === 'applications' && (
+              <button
+                className={`btn btn-sm ${
+                  syncResult === 'ok' ? 'btn-success' :
+                  syncResult === 'error' ? 'btn-danger' :
+                  'btn-warning'
+                }`}
+                style={{ fontSize: '0.78rem', minWidth: '80px' }}
+                onClick={handleSync}
+                disabled={syncing}
+                title={syncResult === 'error' ? syncError : 'Trigger an Argo CD sync for this application'}
+              >
+                {syncing
+                  ? <><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />Syncing…</>
+                  : syncResult === 'ok' ? <><i className="bi bi-check2 me-1" />Synced!</>
+                  : syncResult === 'error' ? <><i className="bi bi-exclamation-triangle me-1" />Failed</>
+                  : <><i className="bi bi-arrow-repeat me-1" />Sync</>}
+              </button>
+            )}
             <button
               className="btn-close btn-close-white"
               onClick={onClose}

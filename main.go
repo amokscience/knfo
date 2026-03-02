@@ -373,6 +373,7 @@ func main() {
 	mux.HandleFunc("/api/top", topHandler)
 	mux.HandleFunc("/api/sync-history", syncHistoryHandler)
 	mux.HandleFunc("/api/detail", detailHandler)
+	mux.HandleFunc("/api/argo-sync", argoSyncHandler)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -833,6 +834,57 @@ func detailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("detail OK kind=%s name=%s remote=%s", kind, name, r.RemoteAddr)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"output": strings.TrimSpace(string(out)), "command": cmdStr})
+}
+
+func argoSyncHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	ns := strings.TrimSpace(r.URL.Query().Get("namespace"))
+	if name == "" {
+		http.Error(w, "missing required query parameter: name", http.StatusBadRequest)
+		return
+	}
+
+	// Patch the Application resource with a sync operation — Argo CD picks it up immediately.
+	patchJSON := `{"operation":{"initiatedBy":{"username":"knfo"},"sync":{"syncStrategy":{"hook":{}}}}}`
+	args := []string{"patch", "app", name, "--type=merge", "-p", patchJSON}
+	if ns != "" {
+		args = append(args, "-n", ns)
+	}
+	cmdStr := "kubectl " + strings.Join(args, " ")
+
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		var raw string
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			raw = "kubectl command timed out"
+		} else {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				raw = strings.TrimSpace(string(exitErr.Stderr))
+			}
+			if raw == "" {
+				raw = err.Error()
+			}
+		}
+		log.Printf("argo-sync error: name=%s ns=%s: %v", name, ns, raw)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": sanitizeError(fmt.Errorf("%s", raw)), "command": cmdStr})
+		return
+	}
+
+	log.Printf("argo-sync OK name=%s ns=%s remote=%s", name, ns, r.RemoteAddr)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"output": strings.TrimSpace(string(out)), "command": cmdStr})
 }
